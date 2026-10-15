@@ -1,0 +1,67 @@
+{
+  "name": "vaultly",
+  "version": "1.0.0",
+  "description": "Lightweight, security-focused desktop password manager for Windows",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "test": "node test/run-tests.js",
+    "build": "node scripts/build.js",
+    "benchmark": "node scripts/benchmark.js",
+    "dist": "electron-builder --win",
+    "dist:portable": "electron-builder --win portable",
+    "dist:dir": "electron-builder --dir"
+  },
+  "keywords": [
+    "password-manager",
+    "electron",
+    "security",
+    "aes-256-gcm",
+    "scrypt",
+    "github-sync",
+    "windows"
+  ],
+  "author": "Raktakto",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^34.2.0",
+    "electron-builder": "^25.1.8",
+    "rcedit": "^5.0.2"
+  },
+  "build": {
+    "appId": "com.raktakto.vaultly",
+    "productName": "Vaultly",
+    "copyright": "Copyright © 2026 Raktakto",
+    "directories": {
+      "output": "dist"
+    },
+    "afterPack": "./scripts/after-pack.js",
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/icons/app-icon.ico",
+      "signAndEditExecutable": false,
+      "publisherName": "Raktakto"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Vaultly"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "config.json",
+      "src/**/*",
+      "assets/**/*"
+    ]
+  },
+  "dependencies": {
+    "rea": "^0.0.1"
+  }
+}

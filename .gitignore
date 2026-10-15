@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build Outputs & Packaging
+dist/
+build/
+out/
+release/
+*.exe
+*.msi
+*.zip
+*.tar.gz
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+
+# Vault Data & Local Backups
+*.vaulty
+*.vaultly
+*.enc.json
+*.bin
+secrets.bin
+vaultly-vault.enc.json
+
+# Environment Variables & Sensitive Keys
+.env
+.env.local
+.env.*.local
+*.env
+*.key
+*.pem
+*.cert
+*.pfx
+*.p12
+
+# Logs & Temporary Files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# IDE & Editor Settings
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~

@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none';">
+  <title>Vaultly Client — Zero-Knowledge Password Vault</title>
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+  <div id="desktop-app-container">
+    <!-- Brutalist Desktop Titlebar -->
+    <header class="brutalist-titlebar" id="brutalist-titlebar">
+      <!-- Left: Styled Brand Logo & Client Badge -->
+      <div class="titlebar-section titlebar-left">
+        <div class="titlebar-brand" id="titlebar-brand">
+          <img src="assets/icons/app-logo-round.png" alt="Vaultly Logo" class="titlebar-logo-round">
+          <div class="brand-text-container">
+            <span class="brand-logo-text">VAULT<span class="brand-accent-text">LY</span></span>
+            <span class="brand-subtitle-text">CLIENT</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center: Draggable Spacer -->
+      <div class="titlebar-section titlebar-center"></div>
+
+      <!-- Right: Custom Windows Controls -->
+      <div class="titlebar-section titlebar-right">
+        <div class="window-controls">
+          <button class="win-btn win-btn-minimize" id="win-btn-min" title="Minimize Window">
+            <svg viewBox="0 0 12 12"><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" stroke-width="1.3"/></svg>
+          </button>
+          <button class="win-btn win-btn-maximize" id="win-btn-max" title="Maximize / Restore">
+            <svg id="icon-max-state" viewBox="0 0 12 12"><rect x="2" y="2" width="8" height="8" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>
+          </button>
+          <button class="win-btn win-btn-close" id="win-btn-close" title="Close Application">
+            <svg viewBox="0 0 12 12"><path d="M2.5 2.5l7 7m0-7l-7 7" stroke="currentColor" stroke-width="1.3"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Workspace Area -->
+    <div id="app-root">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div class="brand">
+            <div class="brand-icon" id="brand-logo-icon"></div>
+            <span>Vaultly</span>
+          </div>
+          <button class="btn-lock-compact" id="btn-quick-lock" title="Lock Vault Now (Ctrl+L)">
+            <!-- Lock icon injected via JS -->
+          </button>
+        </div>
+
+        <nav class="sidebar-nav" id="sidebar-nav">
+          <!-- Injected via components.js -->
+        </nav>
+
+        <div class="sidebar-footer">
+          <button class="nav-item" id="nav-btn-settings">
+            <span class="nav-icon" id="settings-nav-icon"></span>
+            <span class="nav-label">Settings</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main Workspace -->
+      <main class="main-wrapper">
+        <!-- Top Navigation / Search Bar -->
+        <header class="top-bar">
+          <div class="search-box">
+            <span class="search-icon" id="search-bar-icon"></span>
+            <input type="text" id="global-search-input" class="search-input" placeholder="Search entries (Ctrl+F)..." autocomplete="off" spellcheck="false">
+          </div>
+
+          <div class="top-bar-actions">
+            <button class="btn-primary" id="btn-open-add-modal">
+              <span class="btn-icon" id="add-plus-icon"></span>
+              <span>Add Password</span>
+            </button>
+          </div>
+        </header>
+
+        <!-- Dynamic Page Header -->
+        <div class="page-header" id="page-header">
+          <div class="page-title-group">
+            <h1 id="page-title">All Passwords</h1>
+            <p id="page-subtitle">Showing all secured entries</p>
+          </div>
+
+          <div class="view-controls">
+            <select id="sort-select" class="sort-select">
+              <option value="service">Sort by Name</option>
+              <option value="updatedAt">Sort by Recently Updated</option>
+              <option value="createdAt">Sort by Creation Date</option>
+            </select>
+            <button class="btn-icon-only" id="btn-view-toggle" title="Toggle Grid / List View">
+              <!-- View icon -->
+            </button>
+          </div>
+        </div>
+
+        <!-- Scrollable Main Content -->
+        <div class="content-scroll" id="content-scroll">
+          <!-- Password Cards Container -->
+          <div id="cards-container" class="cards-grid"></div>
+
+          <!-- Empty State (Hidden when items exist) -->
+          <div id="empty-state" class="empty-state" style="display: none;">
+            <div class="empty-state-icon" id="empty-state-icon-box"></div>
+            <h3 id="empty-state-title">No passwords found</h3>
+            <p id="empty-state-desc">Your vault is clean. Store your first password to keep it safe.</p>
+            <div style="display: flex; gap: 0.65rem; flex-wrap: wrap; justify-content: center; align-items: center;">
+              <button class="btn-primary" id="btn-empty-add">
+                <span>Add Your First Password</span>
+              </button>
+              <button class="btn-secondary" id="btn-empty-restore-hist" style="background: #00E599; color: #121212; font-weight: 800; border: 2.5px solid #121212; box-shadow: 2.5px 2.5px 0px #121212; padding: 0.5rem 1rem; display: none;">
+                <span>Restore from GitHub History</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Settings Container (Rendered when Settings nav is active) -->
+          <div id="settings-view" style="display: none;"></div>
+        </div>
+      </main>
+
+      <!-- Details Slide-Over Drawer -->
+      <div class="drawer-backdrop" id="details-drawer">
+        <div class="drawer-panel">
+          <div class="drawer-header">
+            <div class="card-service">
+              <div class="service-icon-box" id="detail-icon-box"></div>
+              <div class="service-meta">
+                <h3 id="detail-service-name">Service</h3>
+                <span id="detail-category-tag">Category</span>
+              </div>
+            </div>
+            <button class="btn-icon-only" id="btn-close-drawer" title="Close Panel (Esc)"></button>
+          </div>
+
+          <div class="drawer-body" id="detail-drawer-body">
+            <!-- Populated by components.js -->
+          </div>
+
+          <div class="drawer-footer">
+            <button class="btn-secondary" id="btn-delete-entry" style="color: var(--color-danger); border-color: rgba(239, 68, 68, 0.3);">
+              <span>Delete</span>
+            </button>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn-secondary" id="btn-edit-entry">
+                <span>Edit</span>
+              </button>
+              <button class="btn-primary" id="btn-launch-url">
+                <span>Open Site</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add / Edit Password Modal -->
+      <div class="modal-backdrop" id="entry-modal">
+        <div class="modal-dialog">
+          <div class="modal-header">
+            <h3 id="entry-modal-title">Add New Password</h3>
+            <button class="btn-icon-only" id="btn-close-entry-modal" title="Cancel (Esc)"></button>
+          </div>
+
+          <form id="entry-form" class="modal-body">
+            <input type="hidden" id="entry-id">
+
+            <!-- Service Field with Autocomplete -->
+            <div class="form-group" style="position: relative;">
+              <label class="form-label" for="entry-service">Service / Application Name *</label>
+              <input type="text" id="entry-service" class="form-input" placeholder="e.g. GitHub, Netflix, Google..." required autocomplete="off">
+              <div id="service-suggestions" class="service-suggestions" style="display: none;"></div>
+            </div>
+
+            <!-- Website URL -->
+            <div class="form-group">
+              <label class="form-label" for="entry-url">Website URL</label>
+              <input type="text" id="entry-url" class="form-input" placeholder="https://..." autocomplete="off">
+            </div>
+
+            <!-- Username / Email -->
+            <div class="form-group">
+              <label class="form-label" for="entry-username">Username or Email *</label>
+              <input type="text" id="entry-username" class="form-input" placeholder="user@example.com" required autocomplete="off">
+            </div>
+
+            <!-- Password Field with Generator & Toggle -->
+            <div class="form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label class="form-label" for="entry-password">Password *</label>
+                <button type="button" class="btn-ghost" id="btn-toggle-generator" style="padding: 0; font-size: 0.75rem; color: var(--accent-color);">
+                  <span>Password Generator</span>
+                </button>
+              </div>
+              <div class="input-with-action">
+                <input type="password" id="entry-password" class="form-input" placeholder="Enter or generate password" required autocomplete="new-password">
+                <div class="input-action-buttons">
+                  <button type="button" class="btn-icon-only" id="btn-toggle-pwd-vis" style="width: 28px; height: 28px;" title="Show/Hide Password"></button>
+                  <button type="button" class="btn-icon-only" id="btn-generate-quick" style="width: 28px; height: 28px;" title="Generate Password"></button>
+                </div>
+              </div>
+
+              <!-- Password Strength Bar -->
+              <div class="strength-meter" id="form-strength-meter">
+                <div class="strength-bar-bg">
+                  <div class="strength-bar-fill" id="form-strength-bar"></div>
+                </div>
+                <div class="strength-text">
+                  <span id="form-strength-label">Enter a password</span>
+                  <span id="form-strength-feedback"></span>
+                </div>
+              </div>
+
+              <!-- Inline Password Generator Options (Toggleable) -->
+              <div class="generator-widget" id="inline-generator" style="display: none;">
+                <div class="generator-slider-row">
+                  <span style="font-size: 0.785rem; font-weight: 600;">Length: <strong id="gen-len-label">16</strong></span>
+                  <input type="range" id="gen-slider" class="generator-slider" min="8" max="64" value="16">
+                </div>
+                <div class="generator-checkboxes">
+                  <label class="checkbox-label"><input type="checkbox" id="gen-opt-upper" checked> Uppercase (A-Z)</label>
+                  <label class="checkbox-label"><input type="checkbox" id="gen-opt-lower" checked> Lowercase (a-z)</label>
+                  <label class="checkbox-label"><input type="checkbox" id="gen-opt-numbers" checked> Numbers (0-9)</label>
+                  <label class="checkbox-label"><input type="checkbox" id="gen-opt-symbols" checked> Symbols (!@#$)</label>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.25rem;">
+                  <button type="button" class="btn-secondary" id="btn-apply-generated" style="padding: 0.35rem 0.75rem; font-size: 0.785rem;">
+                    Generate & Apply
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Duplicate Warning Banner -->
+            <div id="duplicate-warning" class="alert-box alert-warning" style="display: none;">
+              <span>A password entry with this service and username already exists!</span>
+            </div>
+
+            <!-- Category and Favorite Toggle -->
+            <div style="display: grid; grid-template-columns: 1fr auto; gap: 1rem; align-items: end;">
+              <div class="form-group">
+                <label class="form-label" for="entry-category">Category</label>
+                <select id="entry-category" class="form-select"></select>
+              </div>
+              <label class="checkbox-label" style="padding-bottom: 0.7rem; font-size: 0.85rem;">
+                <input type="checkbox" id="entry-favorite"> Mark as Favorite
+              </label>
+            </div>
+
+            <!-- Notes -->
+            <div class="form-group">
+              <label class="form-label" for="entry-notes">Secure Notes (Encrypted)</label>
+              <textarea id="entry-notes" class="form-textarea" placeholder="Optional notes, security questions, or recovery codes..."></textarea>
+            </div>
+          </form>
+
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" id="btn-cancel-entry">Cancel</button>
+            <button type="button" class="btn-primary" id="btn-save-entry">Save Password</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SSO / Decrypt Password Modal -->
+      <div class="modal-backdrop" id="sso-modal">
+        <div class="modal-dialog">
+          <div class="modal-header">
+            <h3 id="sso-modal-title">Authentication</h3>
+            <button class="btn-icon-only" id="btn-close-sso-modal" title="Cancel (Esc)"></button>
+          </div>
+          <div class="modal-body" id="sso-modal-body"></div>
+        </div>
+      </div>
+    </div> <!-- /#app-root -->
+
+    <!-- GitHub Cloud Credentials & Local Vault Setup Screen -->
+    <div class="lock-screen" id="github-login-screen" style="display: none; flex-direction: column; align-items: center; justify-content: center; gap: 0.45rem;">
+      <!-- Separate Highlighted Offline / Save Local Box -->
+      <div class="local-save-box" style="width: 740px; max-width: 95%; background: #00E599; border: 3px solid #121212; border-radius: var(--radius-md); box-shadow: 4px 4px 0px #121212; padding: 0.6rem 1.15rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.65rem;">
+        <div style="display: flex; align-items: center; gap: 0.65rem;">
+          <div style="width: 36px; height: 36px; background: #FFFFFF; border: 2px solid #121212; border-radius: 50%; box-shadow: 2px 2px 0px #121212; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#121212" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          </div>
+          <div>
+            <div style="display: flex; align-items: center; gap: 0.45rem;">
+              <h3 style="font-size: 0.98rem; font-weight: 900; margin: 0; color: #121212; letter-spacing: -0.01em;">
+                Offline Local Vault
+              </h3>
+              <span class="badge" style="background: #FFFFFF; border: 1.5px solid #121212; box-shadow: 1.5px 1.5px 0px #121212; font-weight: 900; font-size: 0.65rem; padding: 1px 7px; border-radius: 999px; color: #121212;">
+                Zero-Knowledge DPAPI
+              </span>
+            </div>
+            <p style="font-size: 0.75rem; color: #121212; font-weight: 700; margin: 0.1rem 0 0 0; opacity: 0.9;">
+              Store all passwords locally on this PC. No account or GitHub setup required.
+            </p>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 0.55rem; align-items: center;">
+          <button type="button" class="btn-secondary" id="btn-login-import-vaulty" style="background: #FFFFFF; font-weight: 800; padding: 0.45rem 0.85rem; border: 2px solid #121212; box-shadow: 2px 2px 0px #121212; font-size: 0.8rem;" title="Import and merge passwords from a .vaulty backup file">
+            Import .vaulty
+          </button>
+          <button type="button" class="btn-primary" id="btn-save-local" style="background: #FFE500; color: #121212; font-weight: 900; padding: 0.48rem 1.25rem; border: 2.5px solid #121212; box-shadow: 2.5px 2.5px 0px #121212; font-size: 0.85rem;" title="Skip cloud sync and store all passwords locally on this PC">
+            Save Local
+          </button>
+        </div>
+      </div>
+
+      <!-- OR CLOUD BACKUP DIVIDER -->
+      <div style="display: flex; align-items: center; width: 740px; max-width: 95%;">
+        <div style="flex: 1; height: 1.5px; background: #121212;"></div>
+        <span style="padding: 0 0.75rem; font-size: 0.68rem; font-weight: 900; letter-spacing: 0.08em; color: #121212; opacity: 0.75; text-transform: uppercase;">
+          OR SYNC WITH CLOUD
+        </span>
+        <div style="flex: 1; height: 1.5px; background: #121212;"></div>
+      </div>
+
+      <!-- GitHub Cloud Credentials Card -->
+      <div class="lock-card" style="width: 740px; max-width: 95%; max-height: 82vh; overflow-y: auto; padding: 0.95rem 1.45rem; text-align: left;">
+        <!-- Card Header (Matching Screenshot) -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.15rem;">
+          <div>
+            <h2 style="font-size: 1.15rem; font-weight: 900; margin: 0 0 0.15rem 0; color: #121212; text-align: left; letter-spacing: -0.01em;">
+              GitHub Cloud Backup & Synchronization
+            </h2>
+            <p style="font-size: 0.775rem; color: var(--text-muted); font-weight: 600; margin: 0; line-height: 1.3; text-align: left;">
+              Sync your encrypted vault to your private GitHub repository across devices. GitHub is completely optional.
+            </p>
+          </div>
+          <div>
+            <span class="badge" style="background: #00E599; border: 2px solid #121212; box-shadow: 2px 2px 0px #121212; font-weight: 900; font-size: 0.68rem; padding: 2px 8px; border-radius: 999px; color: #121212;">
+              Optional
+            </span>
+          </div>
+        </div>
+
+        <div style="height: 1.5px; background: #121212; margin: 0.45rem 0 0.6rem;"></div>
+
+        <form class="lock-form" id="github-login-form" style="display: flex; flex-direction: column; gap: 0.45rem; width: 100%; text-align: left;">
+          <div class="form-group" style="text-align: left;">
+            <label class="form-label" for="login-gh-token" style="font-weight: 800; font-size: 0.7rem; letter-spacing: 0.05em; margin-bottom: 0.2rem;">
+              GITHUB PERSONAL ACCESS TOKEN (PAT)
+            </label>
+            <div class="input-with-action">
+              <input type="password" id="login-gh-token" class="form-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" style="padding: 0.42rem 0.65rem;">
+              <div class="input-action-buttons">
+                <button type="button" class="btn-icon-only" id="btn-toggle-login-token" style="width: 26px; height: 26px;" title="Show/Hide Token"></button>
+              </div>
+            </div>
+            <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 0.1rem; display: block; font-weight: 600;">
+              Tokens are stored securely using Electron safeStorage (Windows DPAPI) and never uploaded or logged.
+            </span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem;">
+            <div class="form-group" style="text-align: left;">
+              <label class="form-label" for="login-gh-owner" style="font-weight: 800; font-size: 0.7rem; letter-spacing: 0.05em; margin-bottom: 0.2rem;">
+                REPOSITORY OWNER (USERNAME / ORG)
+              </label>
+              <input type="text" id="login-gh-owner" class="form-input" placeholder="username" autocomplete="off" style="padding: 0.42rem 0.65rem;">
+            </div>
+            <div class="form-group" style="text-align: left;">
+              <label class="form-label" for="login-gh-repo" style="font-weight: 800; font-size: 0.7rem; letter-spacing: 0.05em; margin-bottom: 0.2rem;">
+                PRIVATE REPOSITORY NAME
+              </label>
+              <input type="text" id="login-gh-repo" class="form-input" placeholder="vaultly-passwords" autocomplete="off" style="padding: 0.42rem 0.65rem;">
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; align-items: flex-end;">
+            <div class="form-group" style="text-align: left;">
+              <label class="form-label" for="login-gh-branch" style="font-weight: 800; font-size: 0.7rem; letter-spacing: 0.05em; margin-bottom: 0.2rem;">
+                BRANCH NAME
+              </label>
+              <input type="text" id="login-gh-branch" class="form-input" value="main" autocomplete="off" style="padding: 0.42rem 0.65rem;">
+            </div>
+            <div class="form-group" style="padding-bottom: 0.25rem;">
+              <label class="checkbox-label" style="font-size: 0.76rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 0.45rem;">
+                <input type="checkbox" id="login-gh-autosync" checked>
+                <span>Automatically push changes after edits</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Repository Link & Live Connection Status -->
+          <div id="login-gh-status-panel" style="background: #FFFFFF; border: 2px solid #121212; border-radius: var(--radius-md); box-shadow: 2px 2px 0px #121212; padding: 0.45rem 0.75rem; margin-top: 0.15rem; display: flex; flex-direction: column; gap: 0.35rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.35rem;">
+              <div style="display: flex; align-items: center; gap: 0.45rem;">
+                <span id="login-gh-status-dot" style="display: inline-block; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid #121212; background: #94a3b8;"></span>
+                <span style="font-size: 0.72rem; font-weight: 800; color: #121212;">Connection Status:</span>
+                <span id="login-gh-status-badge" class="badge" style="background: #e2e8f0; color: #475569; border: 1.5px solid #121212; font-weight: 800; font-size: 0.68rem; padding: 1px 7px; border-radius: 999px;">
+                  Not Connected
+                </span>
+              </div>
+              <span id="login-gh-status-msg" style="font-size: 0.7rem; font-weight: 600; color: var(--text-muted);">
+                Click "Test Connection" to verify repository
+              </span>
+            </div>
+
+            <div style="background: #FFFDF8; border: 1.5px solid #121212; border-radius: var(--radius-sm); padding: 0.35rem 0.6rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; gap: 0.45rem; min-width: 0; flex: 1;">
+                <span style="font-size: 0.66rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Repo Link:</span>
+                <a href="#" id="login-gh-repo-link" style="font-size: 0.76rem; font-weight: 800; color: #121212; text-decoration: underline; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="Click to open repository in browser">
+                  https://github.com/owner/repo
+                </a>
+              </div>
+              <div style="display: flex; gap: 0.35rem; flex-shrink: 0;">
+                <button type="button" class="btn-secondary" id="btn-login-copy-repo" style="padding: 0.2rem 0.5rem; font-size: 0.68rem; font-weight: 800; display: inline-flex; align-items: center; gap: 0.25rem;" title="Copy repo link">
+                  <span>Copy</span>
+                </button>
+                <button type="button" class="btn-secondary" id="btn-login-open-repo" style="padding: 0.2rem 0.55rem; font-size: 0.68rem; font-weight: 800; display: inline-flex; align-items: center; gap: 0.25rem; background: #00E599; color: #121212;" title="Open in browser">
+                  <span>Open ↗</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Callout Help Box (Matching Screenshot) -->
+          <div style="background: #EBE3D5; border: 2px solid #121212; border-radius: var(--radius-md); box-shadow: 2px 2px 0px #121212; padding: 0.45rem 0.75rem; font-size: 0.74rem; color: #121212; margin-top: 0.05rem;">
+            <strong style="display: block; margin-bottom: 0.15rem; font-size: 0.76rem;">How to create a private backup repository:</strong>
+            <ol style="margin-left: 1.2rem; margin-top: 0.1rem; display: flex; flex-direction: column; gap: 0.1rem; line-height: 1.3;">
+              <li>Visit <a href="#" id="link-create-login-pat" style="color: #121212; font-weight: 800; text-decoration: underline;">github.com/settings/tokens</a> and generate a token with <code>repo</code> scope.</li>
+              <li>Enter your username, private repository name (e.g. <code>my-vaultly-backup</code>), and token above.</li>
+              <li>Click <strong>Test Connection</strong>. If the repository doesn't exist, Vaultly will offer to create it privately for you.</li>
+            </ol>
+          </div>
+
+          <div id="login-gh-error" class="alert-box alert-danger" style="display: none; font-size: 0.8rem; font-weight: 700;"></div>
+
+          <!-- Cloud Options Bottom Controls -->
+          <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 0.35rem; flex-wrap: wrap; gap: 0.55rem;">
+            <button type="button" class="btn-secondary" id="btn-login-test-gh" style="font-weight: 800; padding: 0.52rem 0.95rem; font-size: 0.8rem;">
+              Test Connection
+            </button>
+            <button type="button" class="btn-secondary" id="btn-login-restore-cloud" style="font-weight: 800; padding: 0.52rem 0.95rem; font-size: 0.8rem;" title="Restore and merge all passwords from GitHub cloud">
+              Restore from Cloud
+            </button>
+            <button type="submit" class="btn-primary" id="btn-submit-gh-login" style="font-weight: 900; padding: 0.52rem 1.25rem; background: #FFE500; font-size: 0.825rem;">
+              Connect & Sync Cloud
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="renderer/catalog.js"></script>
+  <script src="renderer/components.js"></script>
+  <script src="renderer/views.js"></script>
+  <script src="renderer/app.js"></script>
+</body>
+</html>

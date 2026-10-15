@@ -1,0 +1,36 @@
+{
+  "appName": "Vaultly",
+  "version": "1.0.0",
+  "description": "Lightweight, security-focused desktop password manager for Windows",
+  "defaultSettings": {
+    "theme": "dark",
+    "accentColor": "#10b981",
+    "lockTimeoutMinutes": 5,
+    "clipboardClearSeconds": 30,
+    "startMinimized": false,
+    "autoSync": true,
+    "generator": {
+      "length": 16,
+      "uppercase": true,
+      "lowercase": true,
+      "numbers": true,
+      "symbols": true
+    }
+  },
+  "security": {
+    "kdf": "scrypt",
+    "kdfCost": 32768,
+    "kdfBlockSize": 8,
+    "kdfParallelization": 1,
+    "keyLength": 32,
+    "saltLength": 32,
+    "ivLength": 12,
+    "algorithm": "aes-256-gcm"
+  },
+  "githubSync": {
+    "apiBaseUrl": "https://api.github.com",
+    "defaultBranch": "main",
+    "vaultFileName": "vaultly-vault.enc.json",
+    "userAgent": "Vaultly-Password-Manager/1.0.0"
+  }
+}
