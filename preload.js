@@ -62,12 +62,23 @@ contextBridge.exposeInMainWorld('vaultlyApi', {
     ipcRenderer.invoke('github:get-backup-history'),
   restoreFromGitHubCommit: (commitSha, password) =>
     ipcRenderer.invoke('github:restore-commit', { commitSha, password }),
+  getGitHubUserRepos: () =>
+    ipcRenderer.invoke('github:get-user-repos'),
+  getGitHubUserProfile: () =>
+    ipcRenderer.invoke('github:get-user-profile'),
+  checkRepoVault: (owner, repo, branch) =>
+    ipcRenderer.invoke('github:check-repo-vault', { owner, repo, branch }),
 
   // GitHub-First Authentication (Zero-Knowledge Sync)
   checkAuthStatus: () => ipcRenderer.invoke('auth:check-status'),
   loginWithGitHubDetails: (details) => ipcRenderer.invoke('auth:github-login', details),
   saveLocal: () => ipcRenderer.invoke('auth:save-local'),
   disconnectGitHub: () => ipcRenderer.invoke('auth:github-logout'),
+
+  // GitHub OAuth Device Authorization Flow
+  startGitHubDeviceLogin: () => ipcRenderer.invoke('auth:github-start-device'),
+  pollGitHubDeviceLogin: () => ipcRenderer.invoke('auth:github-poll-device'),
+  cancelGitHubDeviceLogin: () => ipcRenderer.invoke('auth:github-cancel-device'),
 
   // Browser Authentication (Legacy / Fallback)
   loginWithBrowser: (provider, isSetup) =>

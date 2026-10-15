@@ -1,6 +1,6 @@
 {
   "appName": "Vaultly",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Lightweight, security-focused desktop password manager for Windows",
   "defaultSettings": {
     "theme": "dark",
@@ -31,6 +31,6 @@
     "apiBaseUrl": "https://api.github.com",
     "defaultBranch": "main",
     "vaultFileName": "vaultly-vault.enc.json",
-    "userAgent": "Vaultly-Password-Manager/1.0.0"
+    "userAgent": "Vaultly-Password-Manager/1.0.1"
   }
 }

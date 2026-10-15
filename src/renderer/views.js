@@ -167,6 +167,7 @@ function renderSettings(container, settings, callbacks) {
 
   const ghOwner = (gh.owner || '').trim();
   const ghRepo = (gh.repo || '').trim();
+  const ghUser = gh.user || null;
   const hasToken = Boolean(settings.hasGitHubToken);
   const hasRepo = Boolean(ghOwner && ghRepo);
   const repoUrlDisplay = hasRepo ? `https://github.com/${ghOwner}/${ghRepo}` : 'https://github.com/(owner)/(repo)';
@@ -320,55 +321,116 @@ function renderSettings(container, settings, callbacks) {
         </div>
       </div>
 
-      ${!isSafeStorage ? `
-        <div class="alert-box alert-warning">
-          ${UI_ICONS.key}
-          <span>Warning: Operating system secure storage (Windows DPAPI safeStorage) is not available in this environment. GitHub tokens will be stored in an obfuscated local file.</span>
-        </div>
-      ` : ''}
-
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-        <div class="form-group" style="grid-column: span 2;">
-          <label class="form-label" for="gh-token">GitHub Personal Access Token (PAT)</label>
-          <div class="input-with-action">
-            <input type="password" id="gh-token" class="form-input"
-                   placeholder="${settings.hasGitHubToken ? 'Token configured (leave blank to keep)' : 'ghp_xxxxxxxxxxxxxxxxxxxx'}"
-                   autocomplete="off">
-            <div class="input-action-buttons">
-              ${settings.hasGitHubToken ? `
-                <button type="button" class="btn-secondary" id="btn-clear-gh-token" style="padding: 0.25rem 0.5rem; font-size: 0.72rem; color: var(--color-danger);">
-                  Disconnect Token
-                </button>
-              ` : ''}
+      ${hasToken ? `
+        <!-- Connected Account Card -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); border: 2.5px solid var(--border-color, #121212); border-radius: var(--radius-md); padding: 0.75rem 1rem; margin-bottom: 1rem; box-shadow: var(--shadow-sm, 2px 2px 0px #121212); flex-wrap: wrap; gap: 0.65rem;">
+          <div style="display: flex; align-items: center; gap: 0.65rem;">
+            ${ghUser?.avatarUrl ? `<img src="${escapeHtml(ghUser.avatarUrl)}" alt="Avatar" style="width: 36px; height: 36px; border-radius: 50%; border: 2px solid #121212;">` : `
+              <div style="width: 36px; height: 36px; border-radius: 50%; background: #00E599; border: 2px solid #121212; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.9rem;">GH</div>
+            `}
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.45rem;">
+                <strong style="font-size: 0.9rem; color: var(--text-main);">@${escapeHtml(ghUser?.login || ghOwner || 'github-user')}</strong>
+                <span class="badge" style="background: #00E599; color: #121212; border: 1.5px solid #121212; font-size: 0.65rem; font-weight: 900; padding: 1px 7px; border-radius: 999px;">
+                  Connected
+                </span>
+              </div>
+              <span style="font-size: 0.74rem; color: var(--text-muted); font-weight: 600;">
+                ${escapeHtml(ghUser?.name ? `${ghUser.name} • OAuth Signed-In` : (hasRepo ? `Synced with ${ghOwner}/${ghRepo}` : 'GitHub Account Connected'))}
+              </span>
             </div>
           </div>
-          <span style="font-size: 0.725rem; color: var(--text-subtle);">
-            Tokens are stored securely using Electron <code>safeStorage</code> (Windows DPAPI) and never uploaded or logged.
-          </span>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button type="button" class="btn-primary" id="btn-settings-change-repo" style="background: #FFE500; font-weight: 900; padding: 0.4rem 0.9rem; font-size: 0.8rem; border: 2px solid #121212; box-shadow: 2px 2px 0px #121212;" title="Choose or switch your private repository">
+              Choose / Change Repo
+            </button>
+            <button type="button" class="btn-secondary" id="btn-clear-gh-token" style="padding: 0.4rem 0.75rem; font-size: 0.76rem; color: var(--color-danger); font-weight: 800;" title="Disconnect token and account">
+              Disconnect
+            </button>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label class="form-label" for="gh-owner">Repository Owner (Username / Org)</label>
-          <input type="text" id="gh-owner" class="form-input" value="${escapeHtml(gh.owner || '')}" placeholder="e.g. your-github-handle">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label class="form-label" for="gh-owner">Repository Owner (Username / Org)</label>
+            <input type="text" id="gh-owner" class="form-input" value="${escapeHtml(gh.owner || '')}" placeholder="e.g. your-github-handle">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="gh-repo">Private Repository Name</label>
+            <input type="text" id="gh-repo" class="form-input" value="${escapeHtml(gh.repo || '')}" placeholder="e.g. vaultly-passwords">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="gh-branch">Branch Name</label>
+            <input type="text" id="gh-branch" class="form-input" value="${escapeHtml(gh.branch || 'main')}" placeholder="main">
+          </div>
+
+          <div class="form-group" style="justify-content: flex-end;">
+            <label class="checkbox-label" style="font-size: 0.85rem; padding-bottom: 0.5rem;">
+              <input type="checkbox" id="gh-auto-sync" ${gh.autoSync !== false ? 'checked' : ''}>
+              Automatically push changes after edits
+            </label>
+          </div>
+        </div>
+      ` : `
+        <!-- Not Connected: Sign In with GitHub Banner -->
+        <div style="background: var(--bg-card); border: 2.5px solid var(--border-color, #121212); border-radius: var(--radius-md); box-shadow: 4px 4px 0px #121212; padding: 1.25rem 1.5rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; margin-bottom: 0.85rem;">
+          <div style="width: 46px; height: 46px; border-radius: 50%; background: #FFE500; border: 2px solid #121212; box-shadow: 2.5px 2.5px 0px #121212; display: flex; align-items: center; justify-content: center;">
+            <span style="width: 24px; height: 24px; display: inline-flex;">${BRAND_ICONS.github}</span>
+          </div>
+          <div>
+            <h4 style="margin: 0 0 0.2rem 0; font-size: 1.05rem; font-weight: 900; color: #121212;">Connect GitHub Account</h4>
+            <p style="margin: 0; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); max-width: 480px; line-height: 1.35;">
+              Sign in with your GitHub account to choose any of your private repositories with 1 click. No Personal Access Token (PAT) needed.
+            </p>
+          </div>
+          <button type="button" class="btn-primary" id="btn-settings-start-gh-login" style="background: #FFE500; font-weight: 900; font-size: 0.92rem; padding: 0.65rem 1.75rem; border: 2.5px solid #121212; box-shadow: 3px 3px 0px #121212; display: flex; align-items: center; gap: 0.55rem; cursor: pointer;">
+            <span style="width: 18px; height: 18px; display: inline-flex;">${BRAND_ICONS.github}</span>
+            <span>Sign In with GitHub</span>
+          </button>
         </div>
 
-        <div class="form-group">
-          <label class="form-label" for="gh-repo">Private Repository Name</label>
-          <input type="text" id="gh-repo" class="form-input" value="${escapeHtml(gh.repo || '')}" placeholder="e.g. vaultly-passwords">
+        <div style="text-align: center; margin-bottom: 0.75rem;">
+          <button type="button" id="btn-toggle-settings-manual-pat" style="background: none; border: none; font-size: 0.74rem; font-weight: 700; color: var(--text-main); text-decoration: underline; cursor: pointer; padding: 0.2rem 0.5rem;">
+            Or configure manually with Personal Access Token (PAT)
+          </button>
         </div>
 
-        <div class="form-group">
-          <label class="form-label" for="gh-branch">Branch Name</label>
-          <input type="text" id="gh-branch" class="form-input" value="${escapeHtml(gh.branch || 'main')}" placeholder="main">
-        </div>
+        <div id="settings-manual-pat-container" style="display: none;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label" for="gh-token">GitHub Personal Access Token (PAT)</label>
+              <input type="password" id="gh-token" class="form-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+              <span style="font-size: 0.725rem; color: var(--text-subtle);">
+                Tokens are stored securely using Electron <code>safeStorage</code> (Windows DPAPI) and never uploaded or logged.
+              </span>
+            </div>
 
-        <div class="form-group" style="justify-content: flex-end;">
-          <label class="checkbox-label" style="font-size: 0.85rem; padding-bottom: 0.5rem;">
-            <input type="checkbox" id="gh-auto-sync" ${gh.autoSync !== false ? 'checked' : ''}>
-            Automatically push changes after edits
-          </label>
+            <div class="form-group">
+              <label class="form-label" for="gh-owner">Repository Owner (Username / Org)</label>
+              <input type="text" id="gh-owner" class="form-input" value="${escapeHtml(gh.owner || '')}" placeholder="e.g. your-github-handle">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="gh-repo">Private Repository Name</label>
+              <input type="text" id="gh-repo" class="form-input" value="${escapeHtml(gh.repo || '')}" placeholder="e.g. vaultly-passwords">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="gh-branch">Branch Name</label>
+              <input type="text" id="gh-branch" class="form-input" value="${escapeHtml(gh.branch || 'main')}" placeholder="main">
+            </div>
+
+            <div class="form-group" style="justify-content: flex-end;">
+              <label class="checkbox-label" style="font-size: 0.85rem; padding-bottom: 0.5rem;">
+                <input type="checkbox" id="gh-auto-sync" ${gh.autoSync !== false ? 'checked' : ''}>
+                Automatically push changes after edits
+              </label>
+            </div>
+          </div>
         </div>
-      </div>
+      `}
 
       <!-- GitHub Repository Link & Live Connection Status Card -->
       <div id="gh-repo-status-panel" style="margin: 0.9rem 0; border: 2px solid var(--border-color, #121212); border-radius: var(--radius-md); box-shadow: var(--shadow-sm, 2px 2px 0px #121212); background: var(--bg-tertiary); padding: 0.85rem 1rem; display: flex; flex-direction: column; gap: 0.65rem;">
@@ -468,7 +530,7 @@ function renderSettings(container, settings, callbacks) {
         <img src="assets/icons/app-logo-round.png" alt="Vaultly" style="width: 38px; height: 38px; border-radius: 50%; border: 2px solid #121212; box-shadow: 2px 2px 0px #121212; background: #FBFBFB; object-fit: cover; flex-shrink: 0;">
         <div>
           <h3>About Vaultly & Security Architecture</h3>
-          <p>Version 1.0.0 • Developed by Raktakto • Open Source MIT License</p>
+          <p>Version 1.0.1 • Developed by Raktakto • Open Source MIT License</p>
         </div>
       </div>
 
@@ -551,31 +613,54 @@ function renderSettings(container, settings, callbacks) {
     clearTokenBtn.addEventListener('click', callbacks.onClearGitHubToken);
   }
 
+  const startGhLoginBtn = container.querySelector('#btn-settings-start-gh-login');
+  if (startGhLoginBtn && callbacks.onStartGitHubLogin) {
+    startGhLoginBtn.addEventListener('click', callbacks.onStartGitHubLogin);
+  }
+
+  const changeRepoBtn = container.querySelector('#btn-settings-change-repo');
+  if (changeRepoBtn && callbacks.onOpenChangeRepoModal) {
+    changeRepoBtn.addEventListener('click', callbacks.onOpenChangeRepoModal);
+  }
+
+  const toggleManualPatBtn = container.querySelector('#btn-toggle-settings-manual-pat');
+  const manualPatContainer = container.querySelector('#settings-manual-pat-container');
+  if (toggleManualPatBtn && manualPatContainer) {
+    toggleManualPatBtn.addEventListener('click', () => {
+      const isHidden = manualPatContainer.style.display === 'none';
+      manualPatContainer.style.display = isHidden ? 'block' : 'none';
+      toggleManualPatBtn.textContent = isHidden ? 'Hide manual configuration' : 'Or configure manually with Personal Access Token (PAT)';
+    });
+  }
+
   const backupHistBtn = container.querySelector('#btn-backup-history');
   if (backupHistBtn && callbacks.onShowBackupHistory) {
     backupHistBtn.addEventListener('click', callbacks.onShowBackupHistory);
   }
 
-  container.querySelector('#btn-test-gh-connection').addEventListener('click', () => {
-    const token = container.querySelector('#gh-token').value;
-    const owner = container.querySelector('#gh-owner').value;
-    const repo = container.querySelector('#gh-repo').value;
-    const branch = container.querySelector('#gh-branch').value;
-    const autoSync = container.querySelector('#gh-auto-sync').checked;
+  const testGhBtn = container.querySelector('#btn-test-gh-connection');
+  if (testGhBtn) {
+    testGhBtn.addEventListener('click', () => {
+      const token = (container.querySelector('#gh-token')?.value || '').trim();
+      const owner = (container.querySelector('#gh-owner')?.value || '').trim();
+      const repo = (container.querySelector('#gh-repo')?.value || '').trim();
+      const branch = (container.querySelector('#gh-branch')?.value || 'main').trim();
+      const autoSync = container.querySelector('#gh-auto-sync')?.checked ?? true;
 
-    const dot = container.querySelector('#gh-connection-dot');
-    const badge = container.querySelector('#gh-connection-badge');
-    const msg = container.querySelector('#gh-connection-msg');
-    if (dot) dot.style.background = '#FFA800';
-    if (badge) {
-      badge.textContent = 'Testing...';
-      badge.style.background = '#FFA800';
-      badge.style.color = '#121212';
-    }
-    if (msg) msg.textContent = 'Verifying connection to repository...';
+      const dot = container.querySelector('#gh-connection-dot');
+      const badge = container.querySelector('#gh-connection-badge');
+      const msg = container.querySelector('#gh-connection-msg');
+      if (dot) dot.style.background = '#FFA800';
+      if (badge) {
+        badge.textContent = 'Testing...';
+        badge.style.background = '#FFA800';
+        badge.style.color = '#121212';
+      }
+      if (msg) msg.textContent = 'Verifying connection to repository...';
 
-    callbacks.onTestGitHub({ token, owner, repo, branch, autoSync });
-  });
+      callbacks.onTestGitHub({ token, owner, repo, branch, autoSync });
+    });
+  }
 
   // Bind Repository Link, Copy, and Live Preview Listeners
   const ownerInput = container.querySelector('#gh-owner');
@@ -651,14 +736,17 @@ function renderSettings(container, settings, callbacks) {
     });
   }
 
-  container.querySelector('#btn-sync-now').addEventListener('click', () => {
-    const token = container.querySelector('#gh-token').value;
-    const owner = container.querySelector('#gh-owner').value;
-    const repo = container.querySelector('#gh-repo').value;
-    const branch = container.querySelector('#gh-branch').value;
-    const autoSync = container.querySelector('#gh-auto-sync').checked;
-    callbacks.onSyncNow({ token, owner, repo, branch, autoSync });
-  });
+  const syncNowBtn = container.querySelector('#btn-sync-now');
+  if (syncNowBtn) {
+    syncNowBtn.addEventListener('click', () => {
+      const token = (container.querySelector('#gh-token')?.value || '').trim();
+      const owner = (container.querySelector('#gh-owner')?.value || '').trim();
+      const repo = (container.querySelector('#gh-repo')?.value || '').trim();
+      const branch = (container.querySelector('#gh-branch')?.value || 'main').trim();
+      const autoSync = container.querySelector('#gh-auto-sync')?.checked ?? true;
+      callbacks.onSyncNow({ token, owner, repo, branch, autoSync });
+    });
+  }
 
   const cloudRestoreBtn = container.querySelector('#btn-restore-cloud');
   if (cloudRestoreBtn) {
@@ -672,11 +760,11 @@ function renderSettings(container, settings, callbacks) {
   const forceBtn = container.querySelector('#btn-force-overwrite-gh');
   if (forceBtn) {
     forceBtn.addEventListener('click', () => {
-      const token = container.querySelector('#gh-token').value;
-      const owner = container.querySelector('#gh-owner').value;
-      const repo = container.querySelector('#gh-repo').value;
-      const branch = container.querySelector('#gh-branch').value;
-      const autoSync = container.querySelector('#gh-auto-sync').checked;
+      const token = (container.querySelector('#gh-token')?.value || '').trim();
+      const owner = (container.querySelector('#gh-owner')?.value || '').trim();
+      const repo = (container.querySelector('#gh-repo')?.value || '').trim();
+      const branch = (container.querySelector('#gh-branch')?.value || 'main').trim();
+      const autoSync = container.querySelector('#gh-auto-sync')?.checked ?? true;
       if (callbacks.onForceOverwriteGitHub) {
         callbacks.onForceOverwriteGitHub({ token, owner, repo, branch, autoSync });
       }

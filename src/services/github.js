@@ -430,6 +430,83 @@ class GitHubSyncService {
     const msg = res.data && res.data.message ? res.data.message : `HTTP ${res.status}`;
     throw new Error(`Failed to upload encrypted vault to GitHub: ${msg}`);
   }
+
+  /**
+   * Fetches the authenticated user profile.
+   * @param {string} token
+   * @returns {Promise<{ login: string, name: string, avatarUrl: string, email: string, htmlUrl: string }>}
+   */
+  async getUserProfile(token) {
+    if (!token) throw new Error('GitHub token is required.');
+    const res = await githubRequest('/user', { token });
+    if (res.status !== 200) {
+      const msg = res.data && res.data.message ? res.data.message : `HTTP ${res.status}`;
+      throw new Error(`Failed to fetch GitHub profile: ${msg}`);
+    }
+    return {
+      login: res.data.login,
+      name: res.data.name || res.data.login,
+      avatarUrl: res.data.avatar_url || '',
+      email: res.data.email || `${res.data.login}@users.noreply.github.com`,
+      htmlUrl: res.data.html_url || `https://github.com/${res.data.login}`
+    };
+  }
+
+  /**
+   * Fetches repositories accessible to the authenticated user.
+   * Prioritizes private repositories and returns clean metadata for repo selection.
+   * @param {string} token
+   * @returns {Promise<Array<{ id: number, name: string, fullName: string, owner: string, ownerAvatar: string, isPrivate: boolean, defaultBranch: string, description: string, updatedAt: string, canPush: boolean }>>}
+   */
+  async getUserRepositories(token) {
+    if (!token) throw new Error('GitHub token is required.');
+    const res = await githubRequest('/user/repos?sort=updated&per_page=100&affiliation=owner,collaborator,organization_member', { token });
+    if (res.status !== 200) {
+      const msg = res.data && res.data.message ? res.data.message : `HTTP ${res.status}`;
+      throw new Error(`Failed to list repositories: ${msg}`);
+    }
+
+    if (!Array.isArray(res.data)) {
+      return [];
+    }
+
+    const repos = res.data.map(r => ({
+      id: r.id,
+      name: r.name,
+      fullName: r.full_name,
+      owner: r.owner ? r.owner.login : '',
+      ownerAvatar: r.owner ? r.owner.avatar_url : '',
+      isPrivate: Boolean(r.private),
+      defaultBranch: r.default_branch || 'main',
+      description: r.description || '',
+      updatedAt: r.updated_at,
+      canPush: r.permissions ? Boolean(r.permissions.push) : true
+    }));
+
+    // Sort: Private repos first, then by updatedAt descending
+    return repos.sort((a, b) => {
+      if (a.isPrivate !== b.isPrivate) return a.isPrivate ? -1 : 1;
+      return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
+    });
+  }
+
+  /**
+   * Checks whether a repository already contains a Vaultly backup file.
+   * @param {string} token
+   * @param {string} owner
+   * @param {string} repo
+   * @param {string} [branch='main']
+   * @returns {Promise<{ found: boolean, sha?: string, entryCount?: number, updatedAt?: string }>}
+   */
+  async checkRepoVault(token, owner, repo, branch = 'main') {
+    const remote = await this.fetchRemoteVault(token, owner, repo, branch);
+    return {
+      found: remote.found,
+      sha: remote.sha || null,
+      entryCount: remote.envelope?.meta?.entryCount ?? null,
+      updatedAt: remote.envelope?.meta?.updatedAt ?? null
+    };
+  }
 }
 
 module.exports = {

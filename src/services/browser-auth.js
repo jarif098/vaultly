@@ -22,6 +22,7 @@ class BrowserAuthService {
     this.activeServer = null;
     this.timeoutTimer = null;
     this.pollingActive = false;
+    this.pollTimer = null;
   }
 
   /**
@@ -129,6 +130,11 @@ class BrowserAuthService {
               const data = JSON.parse(raw);
 
               if (data.access_token) {
+                this.pollingActive = false;
+                if (this.pollTimer) {
+                  clearTimeout(this.pollTimer);
+                  this.pollTimer = null;
+                }
                 // Success! Now fetch the authenticated user profile from GitHub API
                 try {
                   const profile = await this._fetchGitHubUserProfile(data.access_token);
@@ -153,23 +159,30 @@ class BrowserAuthService {
                 return;
               }
 
+              if (!this.pollingActive) return;
+
               if (data.error === 'authorization_pending') {
                 // Still waiting for user to click Authorize on github.com
-                setTimeout(poll, intervalSec * 1000);
+                this.pollTimer = setTimeout(poll, intervalSec * 1000);
               } else if (data.error === 'slow_down') {
                 // GitHub requested slower polling rate
-                setTimeout(poll, (intervalSec + 5) * 1000);
+                this.pollTimer = setTimeout(poll, (intervalSec + 5) * 1000);
               } else {
+                this.pollingActive = false;
                 reject(new Error(data.error_description || data.error || 'GitHub authorization failed.'));
               }
             } catch (e) {
-              setTimeout(poll, intervalSec * 1000);
+              if (this.pollingActive) {
+                this.pollTimer = setTimeout(poll, intervalSec * 1000);
+              }
             }
           });
         });
 
         req.on('error', () => {
-          setTimeout(poll, intervalSec * 1000);
+          if (this.pollingActive) {
+            this.pollTimer = setTimeout(poll, intervalSec * 1000);
+          }
         });
 
         req.write(postData);
@@ -177,7 +190,7 @@ class BrowserAuthService {
       };
 
       // Start initial poll
-      setTimeout(poll, intervalSec * 1000);
+      this.pollTimer = setTimeout(poll, intervalSec * 1000);
     });
   }
 
@@ -503,6 +516,10 @@ class BrowserAuthService {
 
   cancel() {
     this.pollingActive = false;
+    if (this.pollTimer) {
+      clearTimeout(this.pollTimer);
+      this.pollTimer = null;
+    }
     if (this.timeoutTimer) {
       clearTimeout(this.timeoutTimer);
       this.timeoutTimer = null;

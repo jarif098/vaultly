@@ -344,110 +344,345 @@
 
         <div style="height: 1.5px; background: #121212; margin: 0.45rem 0 0.6rem;"></div>
 
-        <form class="lock-form" id="github-login-form" style="display: flex; flex-direction: column; gap: 0.45rem; width: 100%; text-align: left;">
-          <div class="form-group" style="text-align: left;">
-            <label class="form-label" for="login-gh-token" style="font-weight: 800; font-size: 0.7rem; letter-spacing: 0.05em; margin-bottom: 0.2rem;">
-              GITHUB PERSONAL ACCESS TOKEN (PAT)
-            </label>
-            <div class="input-with-action">
-              <input type="password" id="login-gh-token" class="form-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" style="padding: 0.42rem 0.65rem;">
-              <div class="input-action-buttons">
-                <button type="button" class="btn-icon-only" id="btn-toggle-login-token" style="width: 26px; height: 26px;" title="Show/Hide Token"></button>
+        <!-- 1. NOT LOGGED IN: Sign In With GitHub Hero View -->
+        <div id="gh-login-view" style="display: flex; flex-direction: column; gap: 0.65rem; width: 100%;">
+          <div style="background: #FFFDF8; border: 2.5px solid #121212; border-radius: var(--radius-md); box-shadow: 4px 4px 0px #121212; padding: 1.25rem 1.5rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
+            <div style="width: 48px; height: 48px; border-radius: 50%; background: #FFE500; border: 2px solid #121212; box-shadow: 2.5px 2.5px 0px #121212; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+            </div>
+            <div>
+              <h3 style="margin: 0 0 0.2rem 0; font-size: 1.05rem; font-weight: 900; color: #121212;">Connect GitHub Account</h3>
+              <p style="margin: 0; font-size: 0.775rem; font-weight: 600; color: var(--text-muted); max-width: 460px; line-height: 1.35;">
+                Sign in securely through your browser. Vaultly will automatically fetch your private repositories so you can pick one with zero PAT management.
+              </p>
+            </div>
+            <button type="button" class="btn-primary" id="btn-start-gh-login" style="background: #FFE500; font-weight: 900; font-size: 0.92rem; padding: 0.65rem 1.85rem; border: 2.5px solid #121212; box-shadow: 3px 3px 0px #121212; display: flex; align-items: center; gap: 0.55rem; cursor: pointer;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+              <span>Sign In with GitHub</span>
+            </button>
+          </div>
+
+          <div style="text-align: center; margin-top: 0.35rem;">
+            <button type="button" id="btn-toggle-manual-pat" style="background: none; border: none; font-size: 0.74rem; font-weight: 700; color: #121212; text-decoration: underline; cursor: pointer; padding: 0.2rem 0.5rem;">
+              Or configure manually with Personal Access Token (PAT)
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. LOGGED IN: Choose Repository View -->
+        <div id="gh-choose-repo-view" style="display: none; flex-direction: column; gap: 0.55rem; width: 100%;">
+          <!-- Connected User Header -->
+          <div style="display: flex; align-items: center; justify-content: space-between; background: #FFFDF8; border: 2px solid #121212; box-shadow: 2px 2px 0px #121212; border-radius: var(--radius-md); padding: 0.45rem 0.75rem;">
+            <div style="display: flex; align-items: center; gap: 0.55rem;">
+              <img id="login-user-avatar" src="" alt="Avatar" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #121212; display: none;">
+              <div style="width: 32px; height: 32px; border-radius: 50%; background: #00E599; border: 2px solid #121212; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.85rem;" id="login-user-avatar-fallback">
+                GH
+              </div>
+              <div>
+                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                  <span style="font-weight: 900; font-size: 0.82rem; color: #121212;" id="login-user-login">@username</span>
+                  <span class="badge" style="background: #00E599; color: #121212; border: 1px solid #121212; font-size: 0.62rem; padding: 1px 6px; font-weight: 900; border-radius: 999px;">
+                    Connected
+                  </span>
+                </div>
+                <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 600;" id="login-user-name"></div>
               </div>
             </div>
-            <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 0.1rem; display: block; font-weight: 600;">
-              Tokens are stored securely using Electron safeStorage (Windows DPAPI) and never uploaded or logged.
-            </span>
+            <button type="button" class="btn-secondary" id="btn-login-switch-account" style="padding: 0.25rem 0.55rem; font-size: 0.7rem; font-weight: 800;" title="Disconnect or sign in with another account">
+              Switch / Log Out
+            </button>
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem;">
-            <div class="form-group" style="text-align: left;">
-              <label class="form-label" for="login-gh-owner" style="font-weight: 800; font-size: 0.7rem; letter-spacing: 0.05em; margin-bottom: 0.2rem;">
-                REPOSITORY OWNER (USERNAME / ORG)
+          <!-- Repository Selection Form -->
+          <div class="form-group" style="text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.2rem;">
+              <label class="form-label" for="login-repo-dropdown" style="font-weight: 800; font-size: 0.7rem; letter-spacing: 0.05em; margin: 0;">
+                CHOOSE PRIVATE REPOSITORY
               </label>
-              <input type="text" id="login-gh-owner" class="form-input" placeholder="username" autocomplete="off" style="padding: 0.42rem 0.65rem;">
+              <span id="login-repo-count-badge" style="font-size: 0.68rem; font-weight: 700; color: var(--text-muted);">Loading...</span>
             </div>
-            <div class="form-group" style="text-align: left;">
-              <label class="form-label" for="login-gh-repo" style="font-weight: 800; font-size: 0.7rem; letter-spacing: 0.05em; margin-bottom: 0.2rem;">
-                PRIVATE REPOSITORY NAME
-              </label>
-              <input type="text" id="login-gh-repo" class="form-input" placeholder="vaultly-passwords" autocomplete="off" style="padding: 0.42rem 0.65rem;">
+            <div style="display: flex; gap: 0.4rem; margin-bottom: 0.35rem;">
+              <input type="text" id="login-repo-search-input" class="form-input" placeholder="Search your repositories..." style="padding: 0.35rem 0.6rem; font-size: 0.78rem; flex: 1;">
+              <button type="button" class="btn-secondary" id="btn-login-refresh-repos" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; font-weight: 800; display: flex; align-items: center; gap: 0.25rem;" title="Refresh repositories from GitHub">
+                <span>↺</span> <span>Refresh</span>
+              </button>
+            </div>
+            <select id="login-repo-dropdown" class="form-select" size="4" style="height: 100px; font-weight: 700; font-size: 0.8rem; padding: 0.25rem; width: 100%;">
+              <option value="">Loading repositories...</option>
+            </select>
+          </div>
+
+          <!-- Create New Private Repo Box -->
+          <div style="background: #EBE3D5; border: 2px solid #121212; border-radius: var(--radius-md); padding: 0.45rem 0.75rem;">
+            <div style="font-size: 0.7rem; font-weight: 800; margin-bottom: 0.25rem; color: #121212; text-transform: uppercase;">
+              OR CREATE A NEW PRIVATE REPOSITORY:
+            </div>
+            <div style="display: flex; gap: 0.45rem; align-items: center;">
+              <input type="text" id="login-new-repo-input" class="form-input" placeholder="e.g. vaultly-passwords" value="vaultly-passwords" style="padding: 0.35rem 0.6rem; font-size: 0.78rem; flex: 1;">
+              <button type="button" class="btn-secondary" id="btn-login-create-repo-action" style="padding: 0.35rem 0.75rem; font-weight: 900; font-size: 0.76rem; background: #00E599; color: #121212; white-space: nowrap; border: 2px solid #121212; box-shadow: 2px 2px 0px #121212;">
+                + Create Private Repo
+              </button>
             </div>
           </div>
 
+          <!-- Selected Repo Live Detection Status -->
+          <div id="login-chosen-repo-banner" style="display: none; padding: 0.45rem 0.75rem; border-radius: var(--radius-sm); border: 2px solid #121212; box-shadow: 2px 2px 0px #121212; font-size: 0.76rem; font-weight: 700;">
+          </div>
+
+          <!-- Branch & Auto-sync -->
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; align-items: flex-end;">
             <div class="form-group" style="text-align: left;">
-              <label class="form-label" for="login-gh-branch" style="font-weight: 800; font-size: 0.7rem; letter-spacing: 0.05em; margin-bottom: 0.2rem;">
+              <label class="form-label" for="login-chosen-branch" style="font-weight: 800; font-size: 0.7rem; letter-spacing: 0.05em; margin-bottom: 0.2rem;">
                 BRANCH NAME
               </label>
-              <input type="text" id="login-gh-branch" class="form-input" value="main" autocomplete="off" style="padding: 0.42rem 0.65rem;">
+              <input type="text" id="login-chosen-branch" class="form-input" value="main" style="padding: 0.38rem 0.65rem; font-size: 0.8rem;">
             </div>
             <div class="form-group" style="padding-bottom: 0.25rem;">
               <label class="checkbox-label" style="font-size: 0.76rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 0.45rem;">
-                <input type="checkbox" id="login-gh-autosync" checked>
+                <input type="checkbox" id="login-chosen-autosync" checked>
                 <span>Automatically push changes after edits</span>
               </label>
             </div>
           </div>
 
-          <!-- Repository Link & Live Connection Status -->
-          <div id="login-gh-status-panel" style="background: #FFFFFF; border: 2px solid #121212; border-radius: var(--radius-md); box-shadow: 2px 2px 0px #121212; padding: 0.45rem 0.75rem; margin-top: 0.15rem; display: flex; flex-direction: column; gap: 0.35rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.35rem;">
-              <div style="display: flex; align-items: center; gap: 0.45rem;">
-                <span id="login-gh-status-dot" style="display: inline-block; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid #121212; background: #94a3b8;"></span>
-                <span style="font-size: 0.72rem; font-weight: 800; color: #121212;">Connection Status:</span>
-                <span id="login-gh-status-badge" class="badge" style="background: #e2e8f0; color: #475569; border: 1.5px solid #121212; font-weight: 800; font-size: 0.68rem; padding: 1px 7px; border-radius: 999px;">
-                  Not Connected
-                </span>
+          <div id="login-chosen-error" class="alert-box alert-danger" style="display: none; font-size: 0.78rem; font-weight: 700;"></div>
+
+          <!-- Action Buttons for Chosen Repo -->
+          <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 0.25rem; gap: 0.55rem; flex-wrap: wrap;">
+            <button type="button" class="btn-secondary" id="btn-login-chosen-test" style="font-weight: 800; padding: 0.48rem 0.95rem; font-size: 0.8rem;">
+              Test Selected
+            </button>
+            <button type="button" class="btn-primary" id="btn-login-chosen-connect" style="font-weight: 900; padding: 0.52rem 1.35rem; background: #FFE500; font-size: 0.825rem; border: 2px solid #121212; box-shadow: 2.5px 2.5px 0px #121212;">
+              Connect & Sync Repository
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. COLLAPSIBLE MANUAL PAT FORM -->
+        <div id="gh-manual-pat-container" style="display: none; width: 100%;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.45rem;">
+            <span style="font-size: 0.75rem; font-weight: 800; color: #121212; text-transform: uppercase;">
+              Manual PAT Configuration
+            </span>
+            <button type="button" id="btn-hide-manual-pat" style="background: none; border: none; font-size: 0.72rem; font-weight: 700; color: #121212; text-decoration: underline; cursor: pointer;">
+              ← Back to 1-Click Login
+            </button>
+          </div>
+
+          <form class="lock-form" id="github-login-form" style="display: flex; flex-direction: column; gap: 0.45rem; width: 100%; text-align: left;">
+            <div class="form-group" style="text-align: left;">
+              <label class="form-label" for="login-gh-token" style="font-weight: 800; font-size: 0.7rem; letter-spacing: 0.05em; margin-bottom: 0.2rem;">
+                GITHUB PERSONAL ACCESS TOKEN (PAT)
+              </label>
+              <div class="input-with-action">
+                <input type="password" id="login-gh-token" class="form-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" style="padding: 0.42rem 0.65rem;">
+                <div class="input-action-buttons">
+                  <button type="button" class="btn-icon-only" id="btn-toggle-login-token" style="width: 26px; height: 26px;" title="Show/Hide Token"></button>
+                </div>
               </div>
-              <span id="login-gh-status-msg" style="font-size: 0.7rem; font-weight: 600; color: var(--text-muted);">
-                Click "Test Connection" to verify repository
+              <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 0.1rem; display: block; font-weight: 600;">
+                Tokens are stored securely using Electron safeStorage (Windows DPAPI) and never uploaded or logged.
               </span>
             </div>
 
-            <div style="background: #FFFDF8; border: 1.5px solid #121212; border-radius: var(--radius-sm); padding: 0.35rem 0.6rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;">
-              <div style="display: flex; align-items: center; gap: 0.45rem; min-width: 0; flex: 1;">
-                <span style="font-size: 0.66rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Repo Link:</span>
-                <a href="#" id="login-gh-repo-link" style="font-size: 0.76rem; font-weight: 800; color: #121212; text-decoration: underline; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="Click to open repository in browser">
-                  https://github.com/owner/repo
-                </a>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem;">
+              <div class="form-group" style="text-align: left;">
+                <label class="form-label" for="login-gh-owner" style="font-weight: 800; font-size: 0.7rem; letter-spacing: 0.05em; margin-bottom: 0.2rem;">
+                  REPOSITORY OWNER (USERNAME / ORG)
+                </label>
+                <input type="text" id="login-gh-owner" class="form-input" placeholder="username" autocomplete="off" style="padding: 0.42rem 0.65rem;">
               </div>
-              <div style="display: flex; gap: 0.35rem; flex-shrink: 0;">
-                <button type="button" class="btn-secondary" id="btn-login-copy-repo" style="padding: 0.2rem 0.5rem; font-size: 0.68rem; font-weight: 800; display: inline-flex; align-items: center; gap: 0.25rem;" title="Copy repo link">
-                  <span>Copy</span>
-                </button>
-                <button type="button" class="btn-secondary" id="btn-login-open-repo" style="padding: 0.2rem 0.55rem; font-size: 0.68rem; font-weight: 800; display: inline-flex; align-items: center; gap: 0.25rem; background: #00E599; color: #121212;" title="Open in browser">
-                  <span>Open ↗</span>
-                </button>
+              <div class="form-group" style="text-align: left;">
+                <label class="form-label" for="login-gh-repo" style="font-weight: 800; font-size: 0.7rem; letter-spacing: 0.05em; margin-bottom: 0.2rem;">
+                  PRIVATE REPOSITORY NAME
+                </label>
+                <input type="text" id="login-gh-repo" class="form-input" placeholder="vaultly-passwords" autocomplete="off" style="padding: 0.42rem 0.65rem;">
               </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; align-items: flex-end;">
+              <div class="form-group" style="text-align: left;">
+                <label class="form-label" for="login-gh-branch" style="font-weight: 800; font-size: 0.7rem; letter-spacing: 0.05em; margin-bottom: 0.2rem;">
+                  BRANCH NAME
+                </label>
+                <input type="text" id="login-gh-branch" class="form-input" value="main" autocomplete="off" style="padding: 0.42rem 0.65rem;">
+              </div>
+              <div class="form-group" style="padding-bottom: 0.25rem;">
+                <label class="checkbox-label" style="font-size: 0.76rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 0.45rem;">
+                  <input type="checkbox" id="login-gh-autosync" checked>
+                  <span>Automatically push changes after edits</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Repository Link & Live Connection Status -->
+            <div id="login-gh-status-panel" style="background: #FFFFFF; border: 2px solid #121212; border-radius: var(--radius-md); box-shadow: 2px 2px 0px #121212; padding: 0.45rem 0.75rem; margin-top: 0.15rem; display: flex; flex-direction: column; gap: 0.35rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.35rem;">
+                <div style="display: flex; align-items: center; gap: 0.45rem;">
+                  <span id="login-gh-status-dot" style="display: inline-block; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid #121212; background: #94a3b8;"></span>
+                  <span style="font-size: 0.72rem; font-weight: 800; color: #121212;">Connection Status:</span>
+                  <span id="login-gh-status-badge" class="badge" style="background: #e2e8f0; color: #475569; border: 1.5px solid #121212; font-weight: 800; font-size: 0.68rem; padding: 1px 7px; border-radius: 999px;">
+                    Not Connected
+                  </span>
+                </div>
+                <span id="login-gh-status-msg" style="font-size: 0.7rem; font-weight: 600; color: var(--text-muted);">
+                  Click "Test Connection" to verify repository
+                </span>
+              </div>
+
+              <div style="background: #FFFDF8; border: 1.5px solid #121212; border-radius: var(--radius-sm); padding: 0.35rem 0.6rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 0.45rem; min-width: 0; flex: 1;">
+                  <span style="font-size: 0.66rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Repo Link:</span>
+                  <a href="#" id="login-gh-repo-link" style="font-size: 0.76rem; font-weight: 800; color: #121212; text-decoration: underline; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="Click to open repository in browser">
+                    https://github.com/owner/repo
+                  </a>
+                </div>
+                <div style="display: flex; gap: 0.35rem; flex-shrink: 0;">
+                  <button type="button" class="btn-secondary" id="btn-login-copy-repo" style="padding: 0.2rem 0.5rem; font-size: 0.68rem; font-weight: 800; display: inline-flex; align-items: center; gap: 0.25rem;" title="Copy repo link">
+                    <span>Copy</span>
+                  </button>
+                  <button type="button" class="btn-secondary" id="btn-login-open-repo" style="padding: 0.2rem 0.55rem; font-size: 0.68rem; font-weight: 800; display: inline-flex; align-items: center; gap: 0.25rem; background: #00E599; color: #121212;" title="Open in browser">
+                    <span>Open ↗</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Callout Help Box -->
+            <div style="background: #EBE3D5; border: 2px solid #121212; border-radius: var(--radius-md); box-shadow: 2px 2px 0px #121212; padding: 0.45rem 0.75rem; font-size: 0.74rem; color: #121212; margin-top: 0.05rem;">
+              <strong style="display: block; margin-bottom: 0.15rem; font-size: 0.76rem;">How to configure with Personal Access Token (PAT):</strong>
+              <ol style="margin-left: 1.2rem; margin-top: 0.1rem; display: flex; flex-direction: column; gap: 0.1rem; line-height: 1.3;">
+                <li>Visit <a href="#" id="link-create-login-pat" style="color: #121212; font-weight: 800; text-decoration: underline;">github.com/settings/tokens</a> and generate a token with <code>repo</code> scope.</li>
+                <li>Enter your username, private repository name (e.g. <code>my-vaultly-backup</code>), and token above.</li>
+                <li>Click <strong>Test Connection</strong> or <strong>Connect & Sync Cloud</strong>.</li>
+              </ol>
+            </div>
+
+            <div id="login-gh-error" class="alert-box alert-danger" style="display: none; font-size: 0.8rem; font-weight: 700;"></div>
+
+            <!-- Cloud Options Bottom Controls -->
+            <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 0.35rem; flex-wrap: wrap; gap: 0.55rem;">
+              <button type="button" class="btn-secondary" id="btn-login-test-gh" style="font-weight: 800; padding: 0.52rem 0.95rem; font-size: 0.8rem;">
+                Test Connection
+              </button>
+              <button type="button" class="btn-secondary" id="btn-login-restore-cloud" style="font-weight: 800; padding: 0.52rem 0.95rem; font-size: 0.8rem;" title="Restore and merge all passwords from GitHub cloud">
+                Restore from Cloud
+              </button>
+              <button type="submit" class="btn-primary" id="btn-submit-gh-login" style="font-weight: 900; padding: 0.52rem 1.25rem; background: #FFE500; font-size: 0.825rem;">
+                Connect & Sync Cloud
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- GitHub Device Authorization Modal -->
+    <div class="modal-backdrop" id="github-device-modal">
+      <div class="modal-dialog" style="width: 480px;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="width: 20px; height: 20px; display: inline-flex;">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+            </span>
+            <h3 style="margin: 0; font-size: 1.05rem; font-weight: 900;">Authorize GitHub</h3>
+          </div>
+          <button class="btn-icon-only" id="btn-close-device-modal" style="width: 28px; height: 28px;" title="Cancel">✕</button>
+        </div>
+        <div class="modal-body" style="text-align: center; gap: 0.85rem; padding: 1.25rem 1.5rem;">
+          <p style="font-size: 0.825rem; color: #121212; font-weight: 600; margin: 0; line-height: 1.4;">
+            Enter this 8-character code on GitHub to authorize Vaultly with your account:
+          </p>
+          <div id="device-code-display" style="font-family: var(--font-mono); font-size: 2.2rem; font-weight: 900; letter-spacing: 0.25em; background: #FFFDF8; border: 3px solid #121212; box-shadow: 4px 4px 0px #121212; padding: 0.75rem 1rem; border-radius: var(--radius-md); color: #121212; user-select: all;">
+            ---- ----
+          </div>
+          <button type="button" class="btn-primary" id="btn-device-copy-open" style="background: #00E599; font-weight: 900; font-size: 0.9rem; padding: 0.7rem 1.25rem; width: 100%; border: 2.5px solid #121212; box-shadow: 3px 3px 0px #121212; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+            <span>Copy Code & Open GitHub ↗</span>
+          </button>
+          <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 0.78rem; font-weight: 700; color: var(--text-muted); padding-top: 0.2rem;">
+            <span style="display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #FFA800; border: 1.5px solid #121212; animation: pulse 1.5s infinite;"></span>
+            <span id="device-auth-status-text">Waiting for authorization in browser...</span>
+          </div>
+        </div>
+        <div class="modal-footer" style="justify-content: center; padding: 0.75rem 1.5rem;">
+          <button type="button" class="btn-secondary" id="btn-device-cancel" style="padding: 0.4rem 1.15rem; font-weight: 800; font-size: 0.8rem;">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- GitHub Choose / Change Repository Modal -->
+    <div class="modal-backdrop" id="github-repo-modal">
+      <div class="modal-dialog" style="width: 580px;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="width: 20px; height: 20px; display: inline-flex;">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+            </span>
+            <h3 style="margin: 0; font-size: 1.05rem; font-weight: 900;">Choose GitHub Repository</h3>
+          </div>
+          <button class="btn-icon-only" id="btn-close-repo-modal" style="width: 28px; height: 28px;" title="Cancel">✕</button>
+        </div>
+        <div class="modal-body" style="gap: 0.75rem; padding: 1.25rem 1.5rem;">
+          <!-- Logged-in profile info -->
+          <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-primary); border: 2px solid #121212; box-shadow: 2px 2px 0px #121212; border-radius: var(--radius-md); padding: 0.45rem 0.75rem;">
+            <div style="display: flex; align-items: center; gap: 0.55rem;">
+              <img id="modal-repo-user-avatar" src="" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #121212; display: none;">
+              <div style="width: 32px; height: 32px; border-radius: 50%; background: #00E599; border: 2px solid #121212; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.85rem;" id="modal-repo-user-avatar-fallback">
+                GH
+              </div>
+              <div>
+                <div style="font-weight: 900; font-size: 0.82rem; color: #121212;" id="modal-repo-user-login">@username</div>
+                <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 600;" id="modal-repo-user-name"></div>
+              </div>
+            </div>
+            <button type="button" id="btn-modal-repo-switch" class="btn-secondary" style="padding: 0.25rem 0.55rem; font-size: 0.7rem; font-weight: 800;">Switch Account</button>
+          </div>
+
+          <!-- Repo Selection -->
+          <div class="form-group" style="text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.2rem;">
+              <label class="form-label" style="font-weight: 800; font-size: 0.7rem; letter-spacing: 0.05em; margin: 0;">SELECT REPOSITORY</label>
+              <span id="modal-repo-count-badge" style="font-size: 0.68rem; font-weight: 700; color: var(--text-muted);">Loading...</span>
+            </div>
+            <div style="display: flex; gap: 0.4rem; margin-bottom: 0.35rem;">
+              <input type="text" id="modal-repo-filter" class="form-input" placeholder="Search your repositories..." style="padding: 0.35rem 0.6rem; font-size: 0.78rem; flex: 1;">
+              <button type="button" class="btn-secondary" id="btn-modal-repo-refresh" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; font-weight: 800;" title="Refresh repositories">↺ Refresh</button>
+            </div>
+            <select id="modal-repo-select" class="form-select" size="4" style="height: 100px; font-weight: 700; font-size: 0.8rem; padding: 0.25rem; width: 100%;"></select>
+          </div>
+
+          <!-- Or Create New -->
+          <div style="background: #EBE3D5; border: 2px solid #121212; border-radius: var(--radius-md); padding: 0.45rem 0.75rem;">
+            <div style="font-size: 0.7rem; font-weight: 800; margin-bottom: 0.25rem; color: #121212; text-transform: uppercase;">OR CREATE NEW PRIVATE REPOSITORY:</div>
+            <div style="display: flex; gap: 0.45rem; align-items: center;">
+              <input type="text" id="modal-new-repo-name" class="form-input" placeholder="e.g. vaultly-passwords" value="vaultly-passwords" style="padding: 0.35rem 0.6rem; font-size: 0.78rem; flex: 1;">
+              <button type="button" class="btn-secondary" id="btn-modal-create-repo" style="padding: 0.35rem 0.75rem; font-weight: 900; font-size: 0.76rem; white-space: nowrap; background: #00E599; color: #121212; border: 2px solid #121212; box-shadow: 2px 2px 0px #121212;">+ Create Private</button>
             </div>
           </div>
 
-          <!-- Callout Help Box (Matching Screenshot) -->
-          <div style="background: #EBE3D5; border: 2px solid #121212; border-radius: var(--radius-md); box-shadow: 2px 2px 0px #121212; padding: 0.45rem 0.75rem; font-size: 0.74rem; color: #121212; margin-top: 0.05rem;">
-            <strong style="display: block; margin-bottom: 0.15rem; font-size: 0.76rem;">How to create a private backup repository:</strong>
-            <ol style="margin-left: 1.2rem; margin-top: 0.1rem; display: flex; flex-direction: column; gap: 0.1rem; line-height: 1.3;">
-              <li>Visit <a href="#" id="link-create-login-pat" style="color: #121212; font-weight: 800; text-decoration: underline;">github.com/settings/tokens</a> and generate a token with <code>repo</code> scope.</li>
-              <li>Enter your username, private repository name (e.g. <code>my-vaultly-backup</code>), and token above.</li>
-              <li>Click <strong>Test Connection</strong>. If the repository doesn't exist, Vaultly will offer to create it privately for you.</li>
-            </ol>
-          </div>
+          <!-- Live Repo Detection Info -->
+          <div id="modal-repo-detect-status" style="display: none; padding: 0.45rem 0.75rem; border-radius: var(--radius-sm); border: 2px solid #121212; box-shadow: 2px 2px 0px #121212; font-size: 0.76rem; font-weight: 700;"></div>
 
-          <div id="login-gh-error" class="alert-box alert-danger" style="display: none; font-size: 0.8rem; font-weight: 700;"></div>
-
-          <!-- Cloud Options Bottom Controls -->
-          <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 0.35rem; flex-wrap: wrap; gap: 0.55rem;">
-            <button type="button" class="btn-secondary" id="btn-login-test-gh" style="font-weight: 800; padding: 0.52rem 0.95rem; font-size: 0.8rem;">
-              Test Connection
-            </button>
-            <button type="button" class="btn-secondary" id="btn-login-restore-cloud" style="font-weight: 800; padding: 0.52rem 0.95rem; font-size: 0.8rem;" title="Restore and merge all passwords from GitHub cloud">
-              Restore from Cloud
-            </button>
-            <button type="submit" class="btn-primary" id="btn-submit-gh-login" style="font-weight: 900; padding: 0.52rem 1.25rem; background: #FFE500; font-size: 0.825rem;">
-              Connect & Sync Cloud
-            </button>
+          <!-- Branch & Auto-sync -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; align-items: flex-end;">
+            <div class="form-group" style="text-align: left;">
+              <label class="form-label" style="font-weight: 800; font-size: 0.7rem; letter-spacing: 0.05em; margin-bottom: 0.2rem;">BRANCH NAME</label>
+              <input type="text" id="modal-repo-branch" class="form-input" value="main" style="padding: 0.38rem 0.65rem; font-size: 0.8rem;">
+            </div>
+            <div class="form-group" style="padding-bottom: 0.25rem;">
+              <label class="checkbox-label" style="font-size: 0.76rem; font-weight: 700; cursor: pointer;">
+                <input type="checkbox" id="modal-repo-autosync" checked>
+                <span>Auto-push after edits</span>
+              </label>
+            </div>
           </div>
-        </form>
+        </div>
+        <div class="modal-footer" style="padding: 0.75rem 1.5rem; justify-content: flex-end; gap: 0.55rem;">
+          <button type="button" class="btn-secondary" id="btn-modal-repo-cancel" style="padding: 0.45rem 1rem; font-weight: 800; font-size: 0.8rem;">Cancel</button>
+          <button type="button" class="btn-primary" id="btn-modal-repo-confirm" style="background: #FFE500; font-weight: 900; font-size: 0.825rem; padding: 0.5rem 1.25rem; border: 2px solid #121212; box-shadow: 2.5px 2.5px 0px #121212;">
+            Connect & Sync Repository
+          </button>
+        </div>
       </div>
     </div>
 

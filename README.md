@@ -82,8 +82,8 @@ npm run dist:portable
 ```
 
 Built executables will be output to the `dist/` directory:
-- `dist/Vaultly Setup 1.0.0.exe` (Windows Installer)
-- `dist/Vaultly 1.0.0.exe` (Portable Single-file Executable)
+- `dist/Vaultly Setup 1.0.1.exe` (Windows Installer)
+- `dist/Vaultly 1.0.1.exe` (Portable Single-file Executable)
 
 ---
 
@@ -94,7 +94,7 @@ Vaultly ships with an example `config.json` defining defaults:
 ```json
 {
   "appName": "Vaultly",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "defaultSettings": {
     "theme": "dark",
     "accentColor": "#10b981",
@@ -124,7 +124,7 @@ Vaultly ships with an example `config.json` defining defaults:
     "apiBaseUrl": "https://api.github.com",
     "defaultBranch": "main",
     "vaultFileName": "vaultly-vault.enc.json",
-    "userAgent": "Vaultly-Password-Manager/1.0.0"
+    "userAgent": "Vaultly-Password-Manager/1.0.1"
   }
 }
 ```

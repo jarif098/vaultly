@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS = {
     symbols: true
   },
   github: {
+    user: null, // { login, name, avatarUrl, email }
     owner: '',
     repo: '',
     branch: 'main',

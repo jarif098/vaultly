@@ -821,6 +821,408 @@ async function checkVaultState() {
   }
 }
 
+let isDeviceAuthPolling = false;
+let cachedUserRepos = null;
+
+/**
+ * Initiates the GitHub Device Code OAuth flow, presents modal, copies code,
+ * opens browser verification, and waits for background polling completion.
+ */
+async function startGitHubDeviceAuthFlow(onSuccess) {
+  const modal = document.getElementById('github-device-modal');
+  const codeDisplay = document.getElementById('device-code-display');
+  const statusText = document.getElementById('device-auth-status-text');
+  const copyOpenBtn = document.getElementById('btn-device-copy-open');
+  const cancelBtn = document.getElementById('btn-device-cancel');
+  const closeBtn = document.getElementById('btn-close-device-modal');
+
+  let currentVerificationUri = 'https://github.com/login/device';
+  let currentUserCode = '';
+
+  try {
+    if (codeDisplay) codeDisplay.textContent = 'CONNECTING...';
+    if (statusText) statusText.textContent = 'Requesting authorization code from GitHub...';
+    if (modal) modal.classList.add('open');
+
+    const res = await window.vaultlyApi.startGitHubDeviceLogin();
+    if (!res || !res.userCode) {
+      throw new Error('Failed to retrieve device code from GitHub.');
+    }
+
+    currentUserCode = res.userCode;
+    currentVerificationUri = res.verificationUri || 'https://github.com/login/device';
+
+    if (codeDisplay) codeDisplay.textContent = currentUserCode;
+    if (statusText) statusText.textContent = 'Code copied! Waiting for approval in browser...';
+
+    // Copy to clipboard automatically & open browser
+    await window.vaultlyApi.copyToClipboard(currentUserCode, false);
+    await window.vaultlyApi.openExternalUrl(currentVerificationUri);
+    showToast(`Code ${currentUserCode} copied! Opening browser...`, 'info');
+
+    // Bind copy & open button
+    if (copyOpenBtn) {
+      copyOpenBtn.onclick = async () => {
+        if (currentUserCode) {
+          await window.vaultlyApi.copyToClipboard(currentUserCode, false);
+          await window.vaultlyApi.openExternalUrl(currentVerificationUri);
+          showToast(`Code ${currentUserCode} copied!`, 'info');
+        }
+      };
+    }
+
+    const handleCancel = async () => {
+      isDeviceAuthPolling = false;
+      try {
+        await window.vaultlyApi.cancelGitHubDeviceLogin();
+      } catch (_) {}
+      if (modal) modal.classList.remove('open');
+      showToast('GitHub sign-in canceled', 'info');
+    };
+
+    if (cancelBtn) cancelBtn.onclick = handleCancel;
+    if (closeBtn) closeBtn.onclick = handleCancel;
+
+    // Start polling in background
+    isDeviceAuthPolling = true;
+    const pollRes = await window.vaultlyApi.pollGitHubDeviceLogin();
+
+    if (pollRes && pollRes.success) {
+      isDeviceAuthPolling = false;
+      cachedUserRepos = null; // Invalidate repo cache on new auth
+      if (modal) modal.classList.remove('open');
+      showToast(`Signed in to GitHub as @${pollRes.user.login}!`, 'success');
+      if (typeof onSuccess === 'function') {
+        await onSuccess(pollRes.user);
+      }
+    }
+  } catch (err) {
+    if (isDeviceAuthPolling) {
+      showToast('GitHub sign-in: ' + err.message, 'error');
+    }
+    isDeviceAuthPolling = false;
+    if (modal) modal.classList.remove('open');
+  }
+}
+
+/**
+ * Loads repositories into a given <select> element, binds filter input,
+ * and sets up live inspection of vault backup existence.
+ */
+async function loadRepositoriesList({
+  selectEl,
+  badgeEl,
+  searchInputEl,
+  bannerEl,
+  connectBtn,
+  branchInputEl,
+  selectedOwner,
+  selectedRepo,
+  forceRefresh = false
+}) {
+  if (!selectEl) return;
+
+  if (badgeEl) badgeEl.textContent = 'Loading...';
+  selectEl.innerHTML = '<option value="">Loading repositories...</option>';
+  selectEl.disabled = true;
+
+  try {
+    if (!cachedUserRepos || forceRefresh) {
+      cachedUserRepos = await window.vaultlyApi.getGitHubUserRepos();
+    }
+
+    const repos = cachedUserRepos || [];
+    if (badgeEl) badgeEl.textContent = `${repos.length} found`;
+
+    function renderOptions(filterText = '') {
+      const q = filterText.toLowerCase().trim();
+      const filtered = repos.filter(r =>
+        !q || r.name.toLowerCase().includes(q) || r.fullName.toLowerCase().includes(q) || (r.owner && r.owner.toLowerCase().includes(q))
+      );
+
+      selectEl.innerHTML = '';
+      if (filtered.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = q ? 'No repositories match filter' : 'No repositories found';
+        opt.disabled = true;
+        selectEl.appendChild(opt);
+        return;
+      }
+
+      filtered.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = JSON.stringify({ owner: r.owner, repo: r.name, branch: r.defaultBranch || 'main', isPrivate: r.isPrivate });
+        const privacyTag = r.isPrivate ? '🔒 [Private]' : '🌐 [Public]';
+        opt.textContent = `${privacyTag} ${r.fullName || `${r.owner}/${r.name}`}`;
+        if (selectedOwner && selectedRepo && r.owner.toLowerCase() === selectedOwner.toLowerCase() && r.name.toLowerCase() === selectedRepo.toLowerCase()) {
+          opt.selected = true;
+        }
+        selectEl.appendChild(opt);
+      });
+
+      // If nothing selected, select the first option
+      if (!selectEl.value && filtered.length > 0) {
+        selectEl.selectedIndex = 0;
+      }
+    }
+
+    renderOptions(searchInputEl ? searchInputEl.value : '');
+    selectEl.disabled = false;
+
+    const triggerRepoCheck = () => {
+      if (!selectEl.value) {
+        if (bannerEl) bannerEl.style.display = 'none';
+        return;
+      }
+      try {
+        const item = JSON.parse(selectEl.value);
+        if (branchInputEl && (!branchInputEl.value || branchInputEl.value === 'main')) {
+          branchInputEl.value = item.branch || 'main';
+        }
+        checkAndDisplayRepoVault(item.owner, item.repo, branchInputEl ? branchInputEl.value : item.branch, bannerEl, connectBtn);
+      } catch (_) {}
+    };
+
+    if (searchInputEl) {
+      searchInputEl.oninput = () => {
+        renderOptions(searchInputEl.value);
+        triggerRepoCheck();
+      };
+    }
+
+    selectEl.onchange = triggerRepoCheck;
+    triggerRepoCheck();
+
+  } catch (err) {
+    if (badgeEl) badgeEl.textContent = 'Error';
+    selectEl.innerHTML = `<option value="">Failed to load: ${err.message}</option>`;
+    selectEl.disabled = false;
+  }
+}
+
+/**
+ * Checks if a repository contains an existing encrypted vault file and displays
+ * informative brutalist status badge/banner.
+ */
+async function checkAndDisplayRepoVault(owner, repo, branch, bannerEl, connectBtn) {
+  if (!bannerEl || !owner || !repo) return;
+  bannerEl.style.display = 'block';
+  bannerEl.style.background = '#FFFDF8';
+  bannerEl.style.borderColor = '#121212';
+  bannerEl.style.color = '#121212';
+  bannerEl.textContent = 'Inspecting repository for existing vault...';
+
+  try {
+    const res = await window.vaultlyApi.checkRepoVault(owner, repo, branch || 'main');
+    if (res.found) {
+      bannerEl.style.background = '#E8F5E9';
+      bannerEl.style.borderColor = '#00E599';
+      bannerEl.style.color = '#121212';
+      const count = res.entryCount ?? '?';
+      const timeStr = res.updatedAt ? new Date(res.updatedAt).toLocaleString() : 'recently';
+      bannerEl.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 0.4rem;">
+          <span style="font-size: 0.95rem;">📦</span>
+          <div>
+            <strong>Existing Vault Found:</strong> Contains <strong>${count}</strong> encrypted passwords (last synced: ${timeStr}).
+          </div>
+        </div>
+      `;
+      if (connectBtn) {
+        connectBtn.textContent = 'Connect & Restore Vault';
+      }
+    } else {
+      bannerEl.style.background = '#FFFDE7';
+      bannerEl.style.borderColor = '#121212';
+      bannerEl.style.color = '#121212';
+      bannerEl.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 0.4rem;">
+          <span style="font-size: 0.95rem;">✨</span>
+          <div>
+            <strong>Clean Repository:</strong> No existing <code>vaultly-vault.enc.json</code> found. Connecting will initialize cloud backup here.
+          </div>
+        </div>
+      `;
+      if (connectBtn) {
+        connectBtn.textContent = 'Connect & Sync Repository';
+      }
+    }
+  } catch (err) {
+    bannerEl.style.background = '#FFFDF8';
+    bannerEl.style.borderColor = '#FFA800';
+    bannerEl.innerHTML = `⚠️ <span>Notice: ${err.message}</span>`;
+  }
+}
+
+/**
+ * Opens modal for choosing or changing repository in Settings.
+ */
+async function openChooseRepoModal() {
+  const modal = document.getElementById('github-repo-modal');
+  if (!modal) return;
+
+  const userAvatar = document.getElementById('modal-repo-user-avatar');
+  const userFallback = document.getElementById('modal-repo-user-avatar-fallback');
+  const userLogin = document.getElementById('modal-repo-user-login');
+  const userName = document.getElementById('modal-repo-user-name');
+  const selectEl = document.getElementById('modal-repo-select');
+  const countBadge = document.getElementById('modal-repo-count-badge');
+  const filterInput = document.getElementById('modal-repo-filter');
+  const refreshBtn = document.getElementById('btn-modal-repo-refresh');
+  const switchBtn = document.getElementById('btn-modal-repo-switch');
+  const createInput = document.getElementById('modal-new-repo-name');
+  const createBtn = document.getElementById('btn-modal-create-repo');
+  const bannerEl = document.getElementById('modal-repo-detect-status');
+  const branchInput = document.getElementById('modal-repo-branch');
+  const autoSyncInput = document.getElementById('modal-repo-autosync');
+  const cancelBtn = document.getElementById('btn-modal-repo-cancel');
+  const closeBtn = document.getElementById('btn-close-repo-modal');
+  const confirmBtn = document.getElementById('btn-modal-repo-confirm');
+
+  // Load user profile info
+  const user = state.settings?.github?.user || null;
+  const owner = state.settings?.github?.owner || '';
+  const repo = state.settings?.github?.repo || '';
+  const branch = state.settings?.github?.branch || 'main';
+  const autoSync = state.settings?.github?.autoSync !== false;
+
+  if (userLogin) userLogin.textContent = `@${user?.login || owner || 'github-user'}`;
+  if (userName) userName.textContent = user?.name || '';
+  if (user?.avatarUrl) {
+    if (userAvatar) {
+      userAvatar.src = user.avatarUrl;
+      userAvatar.style.display = 'block';
+    }
+    if (userFallback) userFallback.style.display = 'none';
+  } else {
+    if (userAvatar) userAvatar.style.display = 'none';
+    if (userFallback) userFallback.style.display = 'flex';
+  }
+
+  if (branchInput) branchInput.value = branch;
+  if (autoSyncInput) autoSyncInput.checked = autoSync;
+
+  const closeModal = () => modal.classList.remove('open');
+  if (cancelBtn) cancelBtn.onclick = closeModal;
+  if (closeBtn) closeBtn.onclick = closeModal;
+
+  // Switch account button
+  if (switchBtn) {
+    switchBtn.onclick = async () => {
+      closeModal();
+      await window.vaultlyApi.disconnectGitHub();
+      cachedUserRepos = null;
+      state.settings.hasGitHubToken = false;
+      showToast('Logged out of GitHub', 'info');
+      await loadAppSettings();
+      showSettingsView(true);
+      startGitHubDeviceAuthFlow(async () => {
+        await loadAppSettings();
+        showSettingsView(true);
+      });
+    };
+  }
+
+  // Refresh repos button
+  if (refreshBtn) {
+    refreshBtn.onclick = () => {
+      loadRepositoriesList({
+        selectEl,
+        badgeEl: countBadge,
+        searchInputEl: filterInput,
+        bannerEl,
+        connectBtn: confirmBtn,
+        branchInputEl: branchInput,
+        selectedOwner: owner,
+        selectedRepo: repo,
+        forceRefresh: true
+      });
+    };
+  }
+
+  // Create repo button
+  if (createBtn) {
+    createBtn.onclick = async () => {
+      const newName = (createInput ? createInput.value : '').trim();
+      if (!newName) {
+        showToast('Please enter a repository name', 'warning');
+        return;
+      }
+      try {
+        createBtn.disabled = true;
+        createBtn.textContent = 'Creating...';
+        const created = await window.vaultlyApi.createPrivateGitHubRepo(newName);
+        showToast(`Created private repository ${created.owner}/${created.repo}!`, 'success');
+        await loadRepositoriesList({
+          selectEl,
+          badgeEl: countBadge,
+          searchInputEl: filterInput,
+          bannerEl,
+          connectBtn: confirmBtn,
+          branchInputEl: branchInput,
+          selectedOwner: created.owner,
+          selectedRepo: created.repo,
+          forceRefresh: true
+        });
+      } catch (err) {
+        showToast('Failed to create repository: ' + err.message, 'error');
+      } finally {
+        createBtn.disabled = false;
+        createBtn.textContent = '+ Create Private';
+      }
+    };
+  }
+
+  // Confirm button
+  if (confirmBtn) {
+    confirmBtn.onclick = async () => {
+      if (!selectEl || !selectEl.value) {
+        showToast('Please select a repository first', 'warning');
+        return;
+      }
+      try {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Connecting & Syncing...';
+        const sel = JSON.parse(selectEl.value);
+        const br = (branchInput ? branchInput.value : 'main').trim() || 'main';
+        const as = autoSyncInput ? autoSyncInput.checked : true;
+
+        const res = await window.vaultlyApi.loginWithGitHubDetails({
+          owner: sel.owner,
+          repo: sel.repo,
+          branch: br,
+          autoSync: as
+        });
+
+        closeModal();
+        showToast(`Switched repository to @${res.owner}/${res.repo}! Loaded ${res.entryCount} passwords.`, 'success');
+        await loadAppSettings();
+        await refreshVaultData();
+        showSettingsView(true);
+      } catch (err) {
+        showToast('Failed to connect repository: ' + err.message, 'error');
+      } finally {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Connect & Sync Repository';
+      }
+    };
+  }
+
+  modal.classList.add('open');
+
+  await loadRepositoriesList({
+    selectEl,
+    badgeEl: countBadge,
+    searchInputEl: filterInput,
+    bannerEl,
+    connectBtn: confirmBtn,
+    branchInputEl: branchInput,
+    selectedOwner: owner,
+    selectedRepo: repo
+  });
+}
+
 /**
  * Switches screen between GitHub credentials login and main app workspace.
  */
@@ -832,7 +1234,64 @@ function showScreen(screen, data = {}) {
     if (loginEl) loginEl.style.display = 'flex';
     if (appRoot) appRoot.style.display = 'none';
 
-    // Populate or reset fields
+    const ghLoginView = document.getElementById('gh-login-view');
+    const ghChooseRepoView = document.getElementById('gh-choose-repo-view');
+    const ghManualPatContainer = document.getElementById('gh-manual-pat-container');
+
+    const hasToken = Boolean(data.hasToken);
+
+    if (hasToken) {
+      if (ghChooseRepoView) ghChooseRepoView.style.display = 'flex';
+      if (ghLoginView) ghLoginView.style.display = 'none';
+      if (ghManualPatContainer) ghManualPatContainer.style.display = 'none';
+
+      // Update user details
+      const user = data.user || null;
+      const userLoginEl = document.getElementById('login-user-login');
+      const userNameEl = document.getElementById('login-user-name');
+      const userAvatarEl = document.getElementById('login-user-avatar');
+      const userAvatarFallback = document.getElementById('login-user-avatar-fallback');
+
+      if (userLoginEl) userLoginEl.textContent = `@${user?.login || data.owner || 'github-user'}`;
+      if (userNameEl) userNameEl.textContent = user?.name || '';
+      if (user?.avatarUrl) {
+        if (userAvatarEl) {
+          userAvatarEl.src = user.avatarUrl;
+          userAvatarEl.style.display = 'block';
+        }
+        if (userAvatarFallback) userAvatarFallback.style.display = 'none';
+      } else {
+        if (userAvatarEl) userAvatarEl.style.display = 'none';
+        if (userAvatarFallback) userAvatarFallback.style.display = 'flex';
+      }
+
+      if (data.branch) {
+        const branchEl = document.getElementById('login-chosen-branch');
+        if (branchEl) branchEl.value = data.branch;
+      }
+      if (data.autoSync !== undefined) {
+        const autoSyncEl = document.getElementById('login-chosen-autosync');
+        if (autoSyncEl) autoSyncEl.checked = data.autoSync;
+      }
+
+      // Populate repo dropdown
+      loadRepositoriesList({
+        selectEl: document.getElementById('login-repo-dropdown'),
+        badgeEl: document.getElementById('login-repo-count-badge'),
+        searchInputEl: document.getElementById('login-repo-search-input'),
+        bannerEl: document.getElementById('login-chosen-repo-banner'),
+        connectBtn: document.getElementById('btn-login-chosen-connect'),
+        branchInputEl: document.getElementById('login-chosen-branch'),
+        selectedOwner: data.owner,
+        selectedRepo: data.repo
+      });
+    } else {
+      if (ghLoginView) ghLoginView.style.display = 'flex';
+      if (ghChooseRepoView) ghChooseRepoView.style.display = 'none';
+      if (ghManualPatContainer) ghManualPatContainer.style.display = 'none';
+    }
+
+    // Populate or reset manual PAT fields
     const ownerInput = document.getElementById('login-gh-owner');
     const repoInput = document.getElementById('login-gh-repo');
     const branchInput = document.getElementById('login-gh-branch');
@@ -846,7 +1305,6 @@ function showScreen(screen, data = {}) {
 
     if (tokenInput) {
       tokenInput.value = '';
-      setTimeout(() => tokenInput.focus(), 50);
     }
 
     // Reset login connection preview
@@ -1093,7 +1551,170 @@ function closeDetailsDrawer() {
  * Sets up all UI event listeners.
  */
 function setupEventListeners() {
-  // --- GitHub Credentials & Local Vault Setup Screen ---
+  // --- GitHub 1-Click Login & Repo Chooser Listeners ---
+  const btnStartGhLogin = document.getElementById('btn-start-gh-login');
+  if (btnStartGhLogin) {
+    btnStartGhLogin.addEventListener('click', () => {
+      startGitHubDeviceAuthFlow(async (user) => {
+        await checkVaultState();
+      });
+    });
+  }
+
+  const btnToggleManualPat = document.getElementById('btn-toggle-manual-pat');
+  const btnHideManualPat = document.getElementById('btn-hide-manual-pat');
+  const ghLoginView = document.getElementById('gh-login-view');
+  const ghManualPatContainer = document.getElementById('gh-manual-pat-container');
+
+  if (btnToggleManualPat) {
+    btnToggleManualPat.addEventListener('click', () => {
+      if (ghLoginView) ghLoginView.style.display = 'none';
+      if (ghManualPatContainer) ghManualPatContainer.style.display = 'block';
+    });
+  }
+
+  if (btnHideManualPat) {
+    btnHideManualPat.addEventListener('click', () => {
+      if (ghManualPatContainer) ghManualPatContainer.style.display = 'none';
+      if (ghLoginView) ghLoginView.style.display = 'flex';
+    });
+  }
+
+  const btnLoginSwitchAccount = document.getElementById('btn-login-switch-account');
+  if (btnLoginSwitchAccount) {
+    btnLoginSwitchAccount.addEventListener('click', async () => {
+      try {
+        await window.vaultlyApi.disconnectGitHub();
+        cachedUserRepos = null;
+        showToast('Logged out of GitHub', 'info');
+        await checkVaultState();
+      } catch (err) {
+        showToast('Logout error: ' + err.message, 'error');
+      }
+    });
+  }
+
+  const btnLoginRefreshRepos = document.getElementById('btn-login-refresh-repos');
+  if (btnLoginRefreshRepos) {
+    btnLoginRefreshRepos.addEventListener('click', () => {
+      loadRepositoriesList({
+        selectEl: document.getElementById('login-repo-dropdown'),
+        badgeEl: document.getElementById('login-repo-count-badge'),
+        searchInputEl: document.getElementById('login-repo-search-input'),
+        bannerEl: document.getElementById('login-chosen-repo-banner'),
+        connectBtn: document.getElementById('btn-login-chosen-connect'),
+        branchInputEl: document.getElementById('login-chosen-branch'),
+        forceRefresh: true
+      });
+    });
+  }
+
+  const btnLoginCreateRepoAction = document.getElementById('btn-login-create-repo-action');
+  const loginNewRepoInput = document.getElementById('login-new-repo-input');
+  if (btnLoginCreateRepoAction) {
+    btnLoginCreateRepoAction.addEventListener('click', async () => {
+      const repoName = (loginNewRepoInput ? loginNewRepoInput.value : '').trim();
+      if (!repoName) {
+        showToast('Please enter a repository name', 'warning');
+        return;
+      }
+      try {
+        btnLoginCreateRepoAction.disabled = true;
+        btnLoginCreateRepoAction.textContent = 'Creating...';
+        const created = await window.vaultlyApi.createPrivateGitHubRepo(repoName);
+        showToast(`Created private repository ${created.owner}/${created.repo}!`, 'success');
+        await loadRepositoriesList({
+          selectEl: document.getElementById('login-repo-dropdown'),
+          badgeEl: document.getElementById('login-repo-count-badge'),
+          searchInputEl: document.getElementById('login-repo-search-input'),
+          bannerEl: document.getElementById('login-chosen-repo-banner'),
+          connectBtn: document.getElementById('btn-login-chosen-connect'),
+          branchInputEl: document.getElementById('login-chosen-branch'),
+          selectedOwner: created.owner,
+          selectedRepo: created.repo,
+          forceRefresh: true
+        });
+      } catch (err) {
+        showToast('Failed to create repository: ' + err.message, 'error');
+      } finally {
+        btnLoginCreateRepoAction.disabled = false;
+        btnLoginCreateRepoAction.textContent = '+ Create Private Repo';
+      }
+    });
+  }
+
+  const btnLoginChosenTest = document.getElementById('btn-login-chosen-test');
+  const loginChosenError = document.getElementById('login-chosen-error');
+  if (btnLoginChosenTest) {
+    btnLoginChosenTest.addEventListener('click', async () => {
+      if (loginChosenError) loginChosenError.style.display = 'none';
+      const selectEl = document.getElementById('login-repo-dropdown');
+      if (!selectEl || !selectEl.value) {
+        showToast('Please select a repository to test.', 'warning');
+        return;
+      }
+      try {
+        btnLoginChosenTest.disabled = true;
+        btnLoginChosenTest.textContent = 'Testing...';
+        const item = JSON.parse(selectEl.value);
+        const testRes = await window.vaultlyApi.testGitHubConnection(item.owner, item.repo);
+        if (testRes.repoExists) {
+          showToast(`Repository verified: @${testRes.user}/${item.repo}`, 'success');
+        } else {
+          showToast(testRes.message || 'Repository not accessible', 'warning');
+        }
+      } catch (err) {
+        if (loginChosenError) {
+          loginChosenError.textContent = err.message || 'Connection test failed.';
+          loginChosenError.style.display = 'block';
+        }
+        showToast('Connection test failed: ' + err.message, 'error');
+      } finally {
+        btnLoginChosenTest.disabled = false;
+        btnLoginChosenTest.textContent = 'Test Selected';
+      }
+    });
+  }
+
+  const btnLoginChosenConnect = document.getElementById('btn-login-chosen-connect');
+  if (btnLoginChosenConnect) {
+    btnLoginChosenConnect.addEventListener('click', async () => {
+      if (loginChosenError) loginChosenError.style.display = 'none';
+      const selectEl = document.getElementById('login-repo-dropdown');
+      if (!selectEl || !selectEl.value) {
+        showToast('Please select a repository first.', 'warning');
+        return;
+      }
+      try {
+        btnLoginChosenConnect.disabled = true;
+        btnLoginChosenConnect.textContent = 'Connecting & Synchronizing...';
+        const item = JSON.parse(selectEl.value);
+        const branch = (document.getElementById('login-chosen-branch')?.value || 'main').trim() || 'main';
+        const autoSync = document.getElementById('login-chosen-autosync')?.checked ?? true;
+
+        const res = await window.vaultlyApi.loginWithGitHubDetails({
+          owner: item.owner,
+          repo: item.repo,
+          branch,
+          autoSync
+        });
+
+        showToast(`Connected to @${res.owner}/${res.repo}! Loaded ${res.entryCount} passwords.`, 'success');
+        await checkVaultState();
+      } catch (err) {
+        if (loginChosenError) {
+          loginChosenError.textContent = err.message || 'Failed to connect repository.';
+          loginChosenError.style.display = 'block';
+        }
+        showToast('Connection failed: ' + err.message, 'error');
+      } finally {
+        btnLoginChosenConnect.disabled = false;
+        btnLoginChosenConnect.textContent = 'Connect & Sync Repository';
+      }
+    });
+  }
+
+  // --- GitHub Credentials & Local Vault Setup Screen (Manual PAT Fallback) ---
   const ghLoginForm = document.getElementById('github-login-form');
   const ghLoginToken = document.getElementById('login-gh-token');
   const ghLoginOwner = document.getElementById('login-gh-owner');
@@ -1880,12 +2501,20 @@ function showSettingsView(show) {
       onRestoreBackup: async () => {
         await handleImportVaultyFile();
       },
+      onStartGitHubLogin: () => {
+        startGitHubDeviceAuthFlow(async (user) => {
+          await loadAppSettings();
+          showSettingsView(true);
+          await openChooseRepoModal();
+        });
+      },
+      onOpenChangeRepoModal: () => {
+        openChooseRepoModal();
+      },
       onClearGitHubToken: async () => {
         if (!confirm('Are you sure you want to disconnect your GitHub token?')) return;
-        await window.vaultlyApi.clearGitHubToken();
-        await window.vaultlyApi.saveSettings({
-          github: { lastSyncStatus: 'not_configured' }
-        });
+        await window.vaultlyApi.disconnectGitHub();
+        cachedUserRepos = null;
         state.settings.hasGitHubToken = false;
         showToast('GitHub token disconnected', 'info');
         await loadAppSettings();
@@ -2067,8 +2696,16 @@ function setupKeyboardShortcuts() {
       const entryModal = document.getElementById('entry-modal');
       const ssoModal = document.getElementById('sso-modal');
       const drawer = document.getElementById('details-drawer');
+      const deviceModal = document.getElementById('github-device-modal');
+      const repoModal = document.getElementById('github-repo-modal');
+
       if (entryModal && entryModal.classList.contains('open')) {
         closeEntryModal();
+      } else if (deviceModal && deviceModal.classList.contains('open')) {
+        deviceModal.classList.remove('open');
+        window.vaultlyApi.cancelGitHubDeviceLogin().catch(() => {});
+      } else if (repoModal && repoModal.classList.contains('open')) {
+        repoModal.classList.remove('open');
       } else if (ssoModal && ssoModal.classList.contains('open')) {
         ssoModal.classList.remove('open');
       } else if (drawer && drawer.classList.contains('open')) {

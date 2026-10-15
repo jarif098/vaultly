@@ -37,6 +37,7 @@ let vaultService = null;
 let settingsService = null;
 let githubService = null;
 let browserAuthService = new BrowserAuthService();
+let activeGitHubAuth = null;
 
 // Security timers
 let lastActivityTime = Date.now();
@@ -467,6 +468,40 @@ function registerIpcHandlers() {
     return githubService.createPrivateRepository(token, repoName);
   });
 
+  ipcMain.handle('github:get-user-repos', async () => {
+    resetActivity();
+    const token = settingsService.getGitHubToken();
+    if (!token) {
+      throw new Error('Not authenticated with GitHub. Please sign in first.');
+    }
+    return githubService.getUserRepositories(token);
+  });
+
+  ipcMain.handle('github:get-user-profile', async () => {
+    resetActivity();
+    const token = settingsService.getGitHubToken();
+    if (!token) return null;
+    try {
+      const profile = await githubService.getUserProfile(token);
+      const gh = settingsService.settings.github || {};
+      settingsService.saveSettings({
+        github: Object.assign({}, gh, { user: profile })
+      });
+      return profile;
+    } catch (e) {
+      return null;
+    }
+  });
+
+  ipcMain.handle('github:check-repo-vault', async (event, { owner, repo, branch }) => {
+    resetActivity();
+    const token = settingsService.getGitHubToken();
+    if (!token) {
+      throw new Error('GitHub token not found. Please sign in.');
+    }
+    return githubService.checkRepoVault(token, owner, repo, branch || 'main');
+  });
+
   ipcMain.handle('github:sync', async (event, options = {}) => {
     resetActivity();
     const token = settingsService.getGitHubToken();
@@ -717,7 +752,9 @@ function registerIpcHandlers() {
 
       return {
         configured: false,
-        mode: 'unconfigured',
+        mode: settingsService.settings?.mode || 'unconfigured',
+        hasToken: Boolean(settingsService.getGitHubToken()),
+        user: settingsService.settings?.github?.user || null,
         owner: settingsService.settings?.github?.owner || '',
         repo: settingsService.settings?.github?.repo || '',
         branch: settingsService.settings?.github?.branch || 'main',
@@ -806,6 +843,8 @@ function registerIpcHandlers() {
       configured: true,
       unlocked: vaultService.state === VAULT_STATES.UNLOCKED,
       entryCount: vaultService.entries ? vaultService.entries.length : 0,
+      hasToken: true,
+      user: settingsService.settings?.github?.user || null,
       owner: creds.owner,
       repo: creds.repo,
       branch: creds.branch
@@ -852,17 +891,18 @@ function registerIpcHandlers() {
 
   ipcMain.handle('auth:github-login', async (event, { token, owner, repo, branch, autoSync }) => {
     resetActivity();
-    if (!token || typeof token !== 'string' || !token.trim()) {
-      throw new Error('Please enter your GitHub Personal Access Token (PAT).');
+    const storedToken = settingsService.getGitHubToken();
+    const cleanToken = (token || storedToken || '').trim();
+    if (!cleanToken) {
+      throw new Error('Please sign in with GitHub or enter your Personal Access Token (PAT).');
     }
     if (!owner || typeof owner !== 'string' || !owner.trim()) {
-      throw new Error('Please enter your GitHub repository owner (username or organization).');
+      throw new Error('Please enter or select your GitHub repository owner.');
     }
     if (!repo || typeof repo !== 'string' || !repo.trim()) {
-      throw new Error('Please enter your private repository name.');
+      throw new Error('Please enter or select your private repository name.');
     }
 
-    const cleanToken = token.trim();
     const cleanOwner = owner.trim();
     const cleanRepo = repo.trim();
     const cleanBranch = (branch || 'main').trim();
@@ -876,7 +916,7 @@ function registerIpcHandlers() {
       }
       // Auto-create private repository if it doesn't exist
       try {
-        await githubService.createPrivateRepo(cleanToken, cleanRepo);
+        await githubService.createPrivateRepository(cleanToken, cleanRepo);
       } catch (createErr) {
         throw new Error(`Repository "${cleanOwner}/${cleanRepo}" could not be created: ${createErr.message}`);
       }
@@ -884,16 +924,17 @@ function registerIpcHandlers() {
 
     // 2. Save credentials to this PC (safeStorage Windows DPAPI + settings.json)
     settingsService.saveGitHubToken(cleanToken, true);
+    const currentGh = settingsService.settings.github || {};
     settingsService.saveSettings({
       mode: 'github',
-      github: {
+      github: Object.assign({}, currentGh, {
         owner: cleanOwner,
         repo: cleanRepo,
         branch: cleanBranch,
         autoSync: cleanAutoSync,
         lastSyncTimestamp: new Date().toISOString(),
         lastSyncStatus: 'connected'
-      }
+      })
     });
 
     // 3. Derive 256-bit encryption key from GitHub details
@@ -971,9 +1012,81 @@ function registerIpcHandlers() {
 
   ipcMain.handle('auth:github-logout', async () => {
     resetActivity();
+    browserAuthService.cancel();
+    activeGitHubAuth = null;
     settingsService.clearGitHubToken();
-    settingsService.saveSettings({ mode: 'unconfigured' });
+    const gh = settingsService.settings.github || {};
+    settingsService.saveSettings({
+      mode: 'unconfigured',
+      github: Object.assign({}, gh, {
+        user: null,
+        owner: '',
+        repo: '',
+        lastSyncStatus: 'not_configured'
+      })
+    });
     vaultService.lockVault();
+    return { success: true };
+  });
+
+  // --- GitHub Device OAuth Flow ---
+  ipcMain.handle('auth:github-start-device', async () => {
+    resetActivity();
+    try {
+      const authData = await browserAuthService.startGitHubAuth();
+      activeGitHubAuth = authData;
+      return {
+        success: true,
+        userCode: authData.userCode,
+        verificationUri: authData.verificationUri
+      };
+    } catch (err) {
+      activeGitHubAuth = null;
+      throw err;
+    }
+  });
+
+  ipcMain.handle('auth:github-poll-device', async () => {
+    resetActivity();
+    if (!activeGitHubAuth || !activeGitHubAuth.waitForAuth) {
+      throw new Error('No active GitHub device authorization in progress.');
+    }
+    try {
+      const profile = await activeGitHubAuth.waitForAuth();
+      activeGitHubAuth = null;
+
+      settingsService.saveGitHubToken(profile.token, true);
+      const currentGh = settingsService.settings.github || {};
+      settingsService.saveSettings({
+        github: Object.assign({}, currentGh, {
+          user: {
+            login: profile.login,
+            name: profile.name,
+            avatarUrl: profile.avatarUrl,
+            email: profile.email
+          }
+        })
+      });
+
+      return {
+        success: true,
+        user: {
+          login: profile.login,
+          name: profile.name,
+          avatarUrl: profile.avatarUrl,
+          email: profile.email
+        }
+      };
+    } catch (err) {
+      activeGitHubAuth = null;
+      throw err;
+    }
+  });
+
+  ipcMain.handle('auth:github-cancel-device', async () => {
+    resetActivity();
+    browserAuthService.cancel();
+    activeGitHubAuth = null;
     return { success: true };
   });
 
