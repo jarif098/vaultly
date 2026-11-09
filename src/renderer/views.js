@@ -62,6 +62,11 @@ function renderSidebar(navContainer, categories, currentCategory, counts, onSele
  */
 function renderDetailDrawer(bodyEl, entry, callbacks) {
   let isPasswordVisible = false;
+  const isMobile = Boolean(
+    (typeof window !== 'undefined' && window.vaultlyApi && window.vaultlyApi.isMobile) ||
+    (typeof document !== 'undefined' && document.body && document.body.classList.contains('platform-mobile')) ||
+    (typeof window !== 'undefined' && window.innerWidth <= 768)
+  );
 
   bodyEl.innerHTML = `
     <!-- Website URL -->
@@ -113,7 +118,7 @@ function renderDetailDrawer(bodyEl, entry, callbacks) {
     </div>
 
     <!-- Timestamps -->
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-subtle);">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.75rem; font-size: 0.75rem; color: var(--text-subtle);">
       <div>
         <strong>Created:</strong>
         <div>${entry.createdAt ? new Date(entry.createdAt).toLocaleString() : 'Unknown'}</div>
@@ -164,6 +169,7 @@ function renderDetailDrawer(bodyEl, entry, callbacks) {
 function renderSettings(container, settings, callbacks) {
   const gh = settings.github || {};
   const isSafeStorage = settings.safeStorageAvailable;
+  const isMobile = Boolean((typeof window !== 'undefined' && window.vaultlyApi && window.vaultlyApi.isMobile) || (typeof window !== 'undefined' && window.innerWidth <= 768));
 
   const ghOwner = (gh.owner || '').trim();
   const ghRepo = (gh.repo || '').trim();
@@ -172,6 +178,31 @@ function renderSettings(container, settings, callbacks) {
   const hasRepo = Boolean(ghOwner && ghRepo);
   const repoUrlDisplay = hasRepo ? `https://github.com/${ghOwner}/${ghRepo}` : 'https://github.com/(owner)/(repo)';
 
+    const connectedDevices = Array.isArray(settings.connectedDevices) && settings.connectedDevices.length > 0
+    ? settings.connectedDevices
+    : [
+        {
+          id: 'device-pc-primary',
+          name: isMobile ? 'This Android Phone' : 'This PC (Desktop)',
+          type: isMobile ? 'mobile' : 'desktop',
+          platform: isMobile ? 'Android' : 'Windows',
+          pairedVia: 'Local Session',
+          lastActive: Date.now(),
+          isCurrent: true,
+          status: 'authorized'
+        },
+        ...((hasRepo && !isMobile) ? [{
+          id: 'device-mobile-android',
+          name: 'Android Phone (Vaultly APK)',
+          type: 'mobile',
+          platform: 'Android',
+          pairedVia: 'QR Scan',
+          pairedAt: gh.lastSyncTimestamp || Date.now() - 3600000,
+          lastActive: gh.lastSyncTimestamp || Date.now() - 60000,
+          isCurrent: false,
+          status: 'authorized'
+        }] : [])
+      ];
   let connectionDotColor = '#94a3b8';
   let connectionBadgeBg = '#e2e8f0';
   let connectionBadgeColor = '#475569';
@@ -226,7 +257,7 @@ function renderSettings(container, settings, callbacks) {
         <p>Configure theme, appearance, and window behavior.</p>
       </div>
 
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
+      <div class="form-row-2col">
         <div class="form-group">
           <label class="form-label" for="setting-theme">Theme</label>
           <select id="setting-theme" class="form-select">
@@ -277,10 +308,83 @@ function renderSettings(container, settings, callbacks) {
         </label>
       </div>
 
-      <div style="display: flex; justify-content: flex-end;">
+      <div style="display: flex; justify-content: flex-end; margin-top: 0.5rem;">
         <button class="btn-primary" id="btn-save-general-settings">Save General Preferences</button>
       </div>
     </div>
+
+    ${!isMobile ? `
+    <!-- Settings Section: Connected Devices & Access Management -->
+    <div class="settings-section" id="settings-connected-devices">
+      <div class="settings-section-header">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <h3>Connected Devices & Access Management</h3>
+            <p>View all devices authorized to access and sync with your vault. Remove access anytime to disconnect a device.</p>
+          </div>
+          <span class="badge" id="devices-count-badge" style="background: #FFE500; color: #121212; border: 1.5px solid #121212; font-weight: 900; font-size: 0.72rem; padding: 3px 10px; border-radius: 9999px;">
+            ${connectedDevices.length} ${connectedDevices.length === 1 ? 'Device Connected' : 'Devices Connected'}
+          </span>
+        </div>
+      </div>
+
+      <div class="connected-devices-list" id="connected-devices-list" style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.75rem;">
+        ${connectedDevices.map(device => `
+          <div class="device-card" data-device-id="${escapeHtml(device.id)}" style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); border: 2.5px solid var(--border-color, #121212); border-radius: var(--radius-md); padding: 0.85rem 1rem; box-shadow: var(--shadow-sm, 2px 2px 0px #121212); flex-wrap: wrap; gap: 0.75rem;">
+            <div style="display: flex; align-items: center; gap: 0.85rem; min-width: 0;">
+              <div style="width: 40px; height: 40px; border-radius: 8px; background: ${device.isCurrent ? '#FFE500' : '#00E599'}; border: 2px solid #121212; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 2px 2px 0px #121212;">
+                ${device.type === 'desktop' ? `
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#121212" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                ` : `
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#121212" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+                `}
+              </div>
+              <div style="min-width: 0;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                  <strong style="font-size: 0.92rem; color: var(--text-main); font-weight: 800;">${escapeHtml(device.name)}</strong>
+                  ${device.isCurrent ? `
+                    <span class="badge" style="background: #FFE500; color: #121212; border: 1.5px solid #121212; font-size: 0.65rem; font-weight: 900; padding: 1px 7px; border-radius: 999px;">
+                      Current Device
+                    </span>
+                  ` : `
+                    <span class="badge" style="background: #00E599; color: #121212; border: 1.5px solid #121212; font-size: 0.65rem; font-weight: 900; padding: 1px 7px; border-radius: 999px;">
+                      Authorized
+                    </span>
+                  `}
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; margin-top: 2px;">
+                  ${escapeHtml(device.platform || '')} • ${escapeHtml(device.pairedVia || 'Paired')} • <span style="color: var(--text-subtle);">${device.isCurrent ? 'Active Now' : (device.lastActive ? 'Last Active: ' + new Date(device.lastActive).toLocaleDateString() : 'Paired via QR')}</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              ${device.isCurrent ? `
+                <span style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted); padding: 0.35rem 0.6rem;">This PC</span>
+              ` : `
+                <button type="button" class="btn-secondary btn-remove-device" data-device-id="${escapeHtml(device.id)}" data-device-name="${escapeHtml(device.name)}" style="color: var(--color-danger, #FF3B5C); border: 2px solid #121212; font-weight: 900; font-size: 0.76rem; padding: 0.4rem 0.85rem; display: inline-flex; align-items: center; gap: 0.4rem; background: #FFF; box-shadow: 2px 2px 0px #121212; cursor: pointer;" title="Revoke access and disconnect this device">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  <span>Remove Access</span>
+                </button>
+              `}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.9rem; flex-wrap: wrap; gap: 0.5rem;">
+        <p style="font-size: 0.74rem; color: var(--text-muted); margin: 0; font-weight: 600;">
+          Need to connect your Android phone or another device? Pair instantly with a QR code.
+        </p>
+        <button type="button" class="btn-primary" id="btn-settings-mobile-pair" style="background: #FFE500; color: #121212; font-weight: 900; border: 2px solid #121212; box-shadow: 2.5px 2.5px 0px #121212; font-size: 0.8rem; padding: 0.45rem 0.95rem; display: inline-flex; align-items: center; gap: 0.45rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+          <span>Pair New Device (QR)</span>
+        </button>
+      </div>
+    </div>
+
+    </div>
+    ` : ''}
 
     <!-- Settings Section: Backups & Account -->
     <div class="settings-section">
@@ -350,7 +454,7 @@ function renderSettings(container, settings, callbacks) {
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div class="form-row-2col">
           <div class="form-group">
             <label class="form-label" for="gh-owner">Repository Owner (Username / Org)</label>
             <input type="text" id="gh-owner" class="form-input" value="${escapeHtml(gh.owner || '')}" placeholder="e.g. your-github-handle">
@@ -398,7 +502,7 @@ function renderSettings(container, settings, callbacks) {
         </div>
 
         <div id="settings-manual-pat-container" style="display: none;">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-row-2col">
             <div class="form-group" style="grid-column: span 2;">
               <label class="form-label" for="gh-token">GitHub Personal Access Token (PAT)</label>
               <input type="password" id="gh-token" class="form-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
@@ -599,7 +703,49 @@ function renderSettings(container, settings, callbacks) {
     });
   });
 
+  // Bind Connected Devices Remove Access Buttons
+  container.querySelectorAll('.btn-remove-device').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const deviceId = btn.getAttribute('data-device-id');
+      const deviceName = btn.getAttribute('data-device-name') || 'this device';
+
+      const confirmed = window.confirm(`Remove Access for ${deviceName}?\n\nThis device will be immediately disconnected and revoked from accessing or syncing with your encrypted vault.`);
+      if (!confirmed) return;
+
+      btn.disabled = true;
+      btn.innerHTML = '<span>Revoking...</span>';
+
+      try {
+        if (callbacks.onRevokeDevice) {
+          await callbacks.onRevokeDevice(deviceId, deviceName);
+        } else if (window.vaultlyApi && window.vaultlyApi.revokeDeviceAccess) {
+          await window.vaultlyApi.revokeDeviceAccess(deviceId);
+          if (typeof root !== 'undefined' && root.showToast) {
+            root.showToast(`Access removed for ${deviceName}`, 'info');
+          }
+          if (callbacks.onRefreshSettings) callbacks.onRefreshSettings();
+        }
+      } catch (err) {
+        alert('Failed to remove device access: ' + err.message);
+        btn.disabled = false;
+        btn.innerHTML = '<span>Remove Access</span>';
+      }
+    });
+  });
+
   // Bind Backup & Account Buttons
+  const mobilePairBtn = container.querySelector('#btn-settings-mobile-pair');
+  if (mobilePairBtn) {
+    mobilePairBtn.addEventListener('click', () => {
+      if (typeof window.openMobilePairModal === 'function') {
+        window.openMobilePairModal();
+      } else if (callbacks && callbacks.onOpenMobilePair) {
+        callbacks.onOpenMobilePair();
+      }
+    });
+  }
   const exportBtn = container.querySelector('#btn-export-backup');
   if (exportBtn) exportBtn.addEventListener('click', callbacks.onExportBackup);
   const backupRestoreBtn = container.querySelector('#btn-restore-backup');

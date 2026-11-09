@@ -35,16 +35,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Listen for auto-lock events emitted from main process
   window.vaultlyApi.onAutoLocked((data) => {
+    // Permanent session on mobile: never lock mobile app or small screen
+    if (window.vaultlyApi?.isMobile || window.innerWidth <= 768) return;
     handleVaultLocked(true, `Vault auto-locked due to ${data.minutes || 5} min inactivity.`);
   });
 
-  // Listen for background auto-sync updates
+  // Listen for background auto-sync updates (silent background refresh)
   if (window.vaultlyApi.onVaultSynced) {
     window.vaultlyApi.onVaultSynced(async (res) => {
       await refreshVaultData();
-      if (res && res.action === 'merged_and_synced') {
-        showToast(`Cloud sync: ${res.message}`, 'success');
-      }
     });
   }
 
@@ -123,6 +122,41 @@ function setupTitlebarControls() {
       } finally {
         btnTbSync.style.opacity = '1';
       }
+    });
+  }
+
+  const btnTbMobileSync = document.getElementById('btn-tb-mobile-sync');
+  if (btnTbMobileSync) {
+    btnTbMobileSync.addEventListener('click', async () => {
+      if (state.vaultState !== 'unlocked') {
+        showToast('Connect or unlock vault before syncing', 'warning');
+        return;
+      }
+      try {
+        btnTbMobileSync.style.opacity = '0.5';
+        showToast('Syncing vault with GitHub...', 'info');
+        const syncRes = await window.vaultlyApi.syncWithGitHub(false);
+        showToast(syncRes.message || 'Vault synced with GitHub!', 'success');
+        await refreshVaultData();
+      } catch (err) {
+        showToast('Sync failed: ' + err.message, 'error');
+      } finally {
+        btnTbMobileSync.style.opacity = '1';
+      }
+    });
+  }
+
+  const btnTbThemeToggle = document.getElementById('btn-tb-theme-toggle');
+  if (btnTbThemeToggle) {
+    btnTbThemeToggle.addEventListener('click', async () => {
+      const currentTheme = state.settings?.theme || (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+      const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      state.settings = state.settings || {};
+      state.settings.theme = nextTheme;
+      applyThemeAndAccent(nextTheme, state.settings.accentColor);
+      try {
+        await window.vaultlyApi.saveSettings({ theme: nextTheme });
+      } catch (e) {}
     });
   }
 
@@ -233,9 +267,6 @@ async function triggerAutoSync() {
     const res = await window.vaultlyApi.syncWithGitHub(false);
     if (res && res.action !== 'updated_remote') {
       await refreshVaultData();
-      if (res.action === 'merged_and_synced') {
-        showToast(`Cloud sync: ${res.message}`, 'success');
-      }
     }
   } catch (syncErr) {
     console.warn('Auto-sync notice:', syncErr.message);
@@ -803,7 +834,7 @@ async function handleImportVaultyFile(customPass = null) {
 async function checkVaultState() {
   try {
     const authStatus = await window.vaultlyApi.checkAuthStatus();
-    if (!authStatus.configured || !authStatus.unlocked) {
+    if (!authStatus || !authStatus.configured) {
       state.vaultState = 'locked';
       showScreen('login', authStatus);
       updateTitlebarStatus(false, 0);
@@ -816,7 +847,7 @@ async function checkVaultState() {
       triggerAutoSync();
     }
   } catch (err) {
-    showToast('Failed to verify GitHub connection: ' + err.message, 'error');
+    console.warn('Failed to verify GitHub connection: ' + err.message);
     showScreen('login');
   }
 }
@@ -953,7 +984,7 @@ async function loadRepositoriesList({
       filtered.forEach(r => {
         const opt = document.createElement('option');
         opt.value = JSON.stringify({ owner: r.owner, repo: r.name, branch: r.defaultBranch || 'main', isPrivate: r.isPrivate });
-        const privacyTag = r.isPrivate ? '🔒 [Private]' : '🌐 [Public]';
+        const privacyTag = r.isPrivate ? '[Private]' : '[Public]';
         opt.textContent = `${privacyTag} ${r.fullName || `${r.owner}/${r.name}`}`;
         if (selectedOwner && selectedRepo && r.owner.toLowerCase() === selectedOwner.toLowerCase() && r.name.toLowerCase() === selectedRepo.toLowerCase()) {
           opt.selected = true;
@@ -1023,7 +1054,7 @@ async function checkAndDisplayRepoVault(owner, repo, branch, bannerEl, connectBt
       const timeStr = res.updatedAt ? new Date(res.updatedAt).toLocaleString() : 'recently';
       bannerEl.innerHTML = `
         <div style="display: flex; align-items: center; gap: 0.4rem;">
-          <span style="font-size: 0.95rem;">📦</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle;"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
           <div>
             <strong>Existing Vault Found:</strong> Contains <strong>${count}</strong> encrypted passwords (last synced: ${timeStr}).
           </div>
@@ -1038,7 +1069,7 @@ async function checkAndDisplayRepoVault(owner, repo, branch, bannerEl, connectBt
       bannerEl.style.color = '#121212';
       bannerEl.innerHTML = `
         <div style="display: flex; align-items: center; gap: 0.4rem;">
-          <span style="font-size: 0.95rem;">✨</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
           <div>
             <strong>Clean Repository:</strong> No existing <code>vaultly-vault.enc.json</code> found. Connecting will initialize cloud backup here.
           </div>
@@ -1051,7 +1082,7 @@ async function checkAndDisplayRepoVault(owner, repo, branch, bannerEl, connectBt
   } catch (err) {
     bannerEl.style.background = '#FFFDF8';
     bannerEl.style.borderColor = '#FFA800';
-    bannerEl.innerHTML = `⚠️ <span>Notice: ${err.message}</span>`;
+    bannerEl.innerHTML = ` <span>Notice: ${err.message}</span>`;
   }
 }
 
@@ -1234,6 +1265,10 @@ function showScreen(screen, data = {}) {
     if (loginEl) loginEl.style.display = 'flex';
     if (appRoot) appRoot.style.display = 'none';
 
+    if (typeof window.renderWelcomeLiveQr === 'function') {
+      window.renderWelcomeLiveQr();
+    }
+
     const ghLoginView = document.getElementById('gh-login-view');
     const ghChooseRepoView = document.getElementById('gh-choose-repo-view');
     const ghManualPatContainer = document.getElementById('gh-manual-pat-container');
@@ -1345,7 +1380,23 @@ function showScreen(screen, data = {}) {
     if (loginEl) loginEl.style.display = 'none';
     if (appRoot) appRoot.style.display = 'flex';
   }
+
+  const mobBottomNav = document.getElementById('mobile-bottom-nav');
+  if (mobBottomNav) {
+    mobBottomNav.style.display = screen === 'app' ? '' : 'none';
+  }
 }
+
+window.handleCategorySelect = function(catId) {
+  state.isSettingsOpen = false;
+  state.currentCategory = catId;
+  updatePageTitles(catId);
+  showSettingsView(false);
+  refreshVaultData();
+};
+
+window.checkVaultState = checkVaultState;
+window.showScreen = showScreen;
 
 /**
  * Loads user settings and applies active theme and accent colors.
@@ -1373,6 +1424,21 @@ function applyThemeAndAccent(theme, accentColor) {
     document.documentElement.removeAttribute('data-theme');
   }
 
+  if (typeof window !== 'undefined' && window.VaultlyNativeBridge && typeof window.VaultlyNativeBridge.setSystemTheme === 'function') {
+    try {
+      window.VaultlyNativeBridge.setSystemTheme(theme === 'dark' ? 'dark' : 'light');
+    } catch (e) {}
+  }
+
+  const btnTbThemeToggle = document.getElementById('btn-tb-theme-toggle');
+  if (btnTbThemeToggle) {
+    if (theme === 'dark') {
+      btnTbThemeToggle.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
+    } else {
+      btnTbThemeToggle.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+    }
+  }
+
   if (accentColor && /^#[0-9a-fA-F]{6}$/.test(accentColor)) {
     document.documentElement.style.setProperty('--accent-color', accentColor);
     document.documentElement.style.setProperty('--accent-glow', `${accentColor}40`);
@@ -1380,19 +1446,59 @@ function applyThemeAndAccent(theme, accentColor) {
 }
 
 /**
+ * Renders the horizontal touch-scrollable category filter strip on mobile.
+ */
+function renderMobileCategoryStrip(counts) {
+  const strip = document.getElementById('mobile-category-strip');
+  if (!strip) return;
+
+  strip.innerHTML = '';
+  CATEGORIES.forEach(cat => {
+    const count = counts[cat.id] !== undefined ? counts[cat.id] : 0;
+    // Show 'all', 'favorites', 'recent', or any category that has items or is active
+    if (!['all', 'favorites', 'recent'].includes(cat.id) && count === 0 && state.currentCategory !== cat.id) {
+      return;
+    }
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `mobile-cat-pill ${cat.id === state.currentCategory ? 'active' : ''}`;
+    btn.innerHTML = `
+      <span>${escapeHtml(cat.id === 'all' ? 'All' : cat.name)}</span>
+      <span class="mobile-cat-count">${count}</span>
+    `;
+    btn.addEventListener('click', () => {
+      state.isSettingsOpen = false;
+      state.currentCategory = cat.id;
+      updatePageTitles(cat.id);
+      showSettingsView(false);
+      refreshVaultData();
+    });
+    strip.appendChild(btn);
+  });
+}
+
+/**
  * Refreshes entries from the vault and updates sidebar counts.
  */
 async function refreshVaultData() {
   try {
-    const entries = await window.vaultlyApi.getEntries({
+    let rawEntries = await window.vaultlyApi.getEntries({
       category: state.currentCategory,
       search: state.searchQuery,
       sortBy: state.sortBy
     });
-    state.entries = entries;
+    if (rawEntries && Array.isArray(rawEntries.entries)) {
+      rawEntries = rawEntries.entries;
+    }
+    state.entries = Array.isArray(rawEntries) ? rawEntries : [];
 
     // Fetch all entries count per category
-    const allEntries = await window.vaultlyApi.getEntries({ category: 'all' });
+    let rawAllEntries = await window.vaultlyApi.getEntries({ category: 'all' });
+    if (rawAllEntries && Array.isArray(rawAllEntries.entries)) {
+      rawAllEntries = rawAllEntries.entries;
+    }
+    const allEntries = Array.isArray(rawAllEntries) ? rawAllEntries : [];
     const counts = calculateCategoryCounts(allEntries);
 
     renderSidebar(
@@ -1409,6 +1515,8 @@ async function refreshVaultData() {
       }
     );
 
+    renderMobileCategoryStrip(counts);
+    updatePageTitles(state.currentCategory);
     renderEntries();
     updateTitlebarStatus(true, allEntries.length);
   } catch (err) {
@@ -1420,7 +1528,8 @@ async function refreshVaultData() {
  * Calculates item counts for categories.
  */
 function calculateCategoryCounts(allEntries) {
-  const counts = { all: allEntries.length, favorites: 0, recent: 0 };
+  const list = Array.isArray(allEntries) ? allEntries : (allEntries && Array.isArray(allEntries.entries) ? allEntries.entries : []);
+  const counts = { all: list.length, favorites: 0, recent: 0 };
   const cutoff = Date.now() - (14 * 24 * 60 * 60 * 1000);
 
   CATEGORIES.forEach(c => {
@@ -1429,8 +1538,8 @@ function calculateCategoryCounts(allEntries) {
     }
   });
 
-  allEntries.forEach(e => {
-    if (e.isFavorite) counts.favorites++;
+  list.forEach(e => {
+    if (e.isFavorite || e.favorite) counts.favorites++;
     if (new Date(e.createdAt || e.updatedAt).getTime() >= cutoff) counts.recent++;
     if (e.category && counts[e.category] !== undefined) {
       counts[e.category]++;
@@ -1447,14 +1556,19 @@ function updatePageTitles(catId) {
   const titleEl = document.getElementById('page-title');
   const subEl = document.getElementById('page-subtitle');
   const cat = CATEGORIES.find(c => c.id === catId);
+  const count = Array.isArray(state.entries) ? state.entries.length : 0;
 
-  titleEl.textContent = cat ? cat.name : 'Passwords';
+  if (titleEl) titleEl.textContent = cat ? cat.name : 'Passwords';
+  if (!subEl) return;
+
   if (catId === 'favorites') {
-    subEl.textContent = 'Your starred and prioritized entries';
+    subEl.textContent = `${count} starred ${count === 1 ? 'credential' : 'credentials'}`;
   } else if (catId === 'recent') {
-    subEl.textContent = 'Entries added or updated in the last 14 days';
+    subEl.textContent = `${count} recently updated ${count === 1 ? 'entry' : 'entries'}`;
+  } else if (catId === 'all') {
+    subEl.textContent = `${count} encrypted ${count === 1 ? 'credential' : 'credentials'}`;
   } else {
-    subEl.textContent = `Showing ${cat ? cat.name.toLowerCase() : ''} passwords`;
+    subEl.textContent = `${count} ${cat ? cat.name.toLowerCase() : ''} ${count === 1 ? 'password' : 'passwords'}`;
   }
 }
 
@@ -1487,12 +1601,13 @@ function renderEntries() {
   container.style.display = state.viewMode === 'list' ? 'flex' : 'grid';
   emptyState.style.display = 'none';
 
-  state.entries.forEach(entry => {
+  const entriesToRender = Array.isArray(state.entries) ? state.entries : [];
+  entriesToRender.forEach(entry => {
     const card = createPasswordCard(
       entry,
       (selected) => openDetailsDrawer(selected),
-      (e) => copyTextToClipboard(e.username, false, 'Username copied to clipboard'),
-      (e) => copyTextToClipboard(e.password, true, 'Password copied! (Clipboard auto-clears)'),
+      (e) => copyTextToClipboard(e.username, false, 'Username copied'),
+      (e) => copyTextToClipboard(e.password, true, 'Password copied'),
       async (e) => {
         try {
           await window.vaultlyApi.toggleFavorite(e.id);
@@ -1534,9 +1649,9 @@ function openDetailsDrawer(entry) {
   tagEl.textContent = (entry.category || 'other').toUpperCase();
 
   renderDetailDrawer(body, entry, {
-    onCopyUser: (e) => copyTextToClipboard(e.username, false, 'Username copied!'),
-    onCopyPassword: (e) => copyTextToClipboard(e.password, true, 'Password copied! (Protected)'),
-    onCopyUrl: (url) => copyTextToClipboard(url, false, 'URL copied!')
+    onCopyUser: (e) => copyTextToClipboard(e.username, false, 'Username copied'),
+    onCopyPassword: (e) => copyTextToClipboard(e.password, true, 'Password copied'),
+    onCopyUrl: (url) => copyTextToClipboard(url, false, 'URL copied')
   });
 
   drawer.classList.add('open');
@@ -1956,7 +2071,7 @@ function setupEventListeners() {
         const res = await window.vaultlyApi.loginWithGitHubDetails({ token, owner, repo, branch, autoSync });
         if (res.success) {
           const count = res.entryCount || 0;
-          showToast(`✓ Restored ${count} password${count !== 1 ? 's' : ''} from @${res.owner}/${res.repo}!`, 'success');
+          showToast(` Restored ${count} password${count !== 1 ? 's' : ''} from @${res.owner}/${res.repo}!`, 'success');
           await checkVaultState();
         }
       } catch (err) {
@@ -2317,6 +2432,11 @@ function setupEventListeners() {
         showToast('Entry deleted', 'success');
         closeDetailsDrawer();
         await refreshVaultData();
+
+        // Trigger automatic sync if enabled
+        if (state.settings?.github?.autoSync && state.settings?.hasGitHubToken) {
+          window.vaultlyApi.syncWithGitHub().catch(() => {});
+        }
       } catch (err) {
         showToast('Failed to delete: ' + err.message, 'error');
       }
@@ -2430,11 +2550,16 @@ function showSettingsView(show) {
   const emptyState = document.getElementById('empty-state');
   const pageHeader = document.getElementById('page-header');
   const settingsNavBtn = document.getElementById('nav-btn-settings');
+  const mobCatStrip = document.getElementById('mobile-category-strip');
+
+  const topBar = document.querySelector('.top-bar');
 
   if (show) {
     document.querySelectorAll('.sidebar-nav .nav-item').forEach(item => item.classList.remove('active'));
     settingsNavBtn.classList.add('active');
 
+    if (topBar) topBar.style.display = 'none';
+    if (mobCatStrip) mobCatStrip.style.display = 'none';
     pageHeader.style.display = 'none';
     cardsContainer.style.display = 'none';
     emptyState.style.display = 'none';
@@ -2490,7 +2615,7 @@ function showSettingsView(show) {
               const res = await window.vaultlyApi.exportBackupFile(password);
               if (!res || res.canceled) return;
               if (res.success) {
-                showToast(`✓ .vaulty backup exported: ${res.filePath}`, 'success');
+                showToast(` .vaulty backup exported: ${res.filePath}`, 'success');
               }
             } catch (err) {
               showToast('Export failed: ' + err.message, 'error');
@@ -2646,16 +2771,47 @@ function showSettingsView(show) {
           }
         });
       },
+      onOpenMobilePair: () => {
+        if (typeof window.openMobilePairModal === 'function') {
+          window.openMobilePairModal();
+        }
+      },
+      onRevokeDevice: async (deviceId, deviceName) => {
+        try {
+          if (window.vaultlyApi && window.vaultlyApi.revokeDeviceAccess) {
+            await window.vaultlyApi.revokeDeviceAccess(deviceId);
+          }
+          showToast(`Access revoked for ${deviceName}. Device disconnected.`, 'info');
+          await loadAppSettings();
+          showSettingsView(true);
+        } catch (err) {
+          showToast('Failed to revoke access: ' + err.message, 'error');
+        }
+      },
+      onRefreshSettings: async () => {
+        await loadAppSettings();
+        showSettingsView(true);
+      },
       onOpenExternal: async (url) => {
         await window.vaultlyApi.openExternalUrl(url);
       }
     });
   } else {
     settingsNavBtn.classList.remove('active');
+    if (topBar) topBar.style.display = '';
+    if (mobCatStrip) mobCatStrip.style.display = '';
     pageHeader.style.display = 'flex';
+    cardsContainer.style.display = state.viewMode === 'list' ? 'flex' : 'grid';
     settingsEl.style.display = 'none';
   }
 }
+
+window.showToast = showToast;
+window.refreshVaultData = refreshVaultData;
+window.applyThemeAndAccent = applyThemeAndAccent;
+window.showSettingsView = showSettingsView;
+window.loadAppSettings = loadAppSettings;
+window.state = state;
 
 /**
  * Configures global desktop keyboard shortcuts.

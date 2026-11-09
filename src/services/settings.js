@@ -32,6 +32,8 @@ const DEFAULT_SETTINGS = {
     lastSyncTimestamp: null,
     lastSyncStatus: 'not_configured'
   },
+  connectedDevices: [],
+  revokedDevices: [],
   mode: 'unconfigured' // 'unconfigured' | 'local' | 'github'
 };
 
@@ -69,6 +71,8 @@ class SettingsService {
     const merged = Object.assign({}, DEFAULT_SETTINGS, loaded);
     merged.generatorDefaults = Object.assign({}, DEFAULT_SETTINGS.generatorDefaults, loaded.generatorDefaults);
     merged.github = Object.assign({}, DEFAULT_SETTINGS.github, loaded.github);
+    merged.connectedDevices = Array.isArray(loaded.connectedDevices) ? loaded.connectedDevices : [];
+    merged.revokedDevices = Array.isArray(loaded.revokedDevices) ? loaded.revokedDevices : [];
     return merged;
   }
 
@@ -400,12 +404,100 @@ class SettingsService {
    * Returns settings safe to send to renderer (never includes plaintext token).
    * @returns {object}
    */
+    getConnectedDevices() {
+    const isWin = process.platform === 'win32';
+    const currentDevice = {
+      id: 'device-pc-primary',
+      name: isWin ? 'This PC (Windows)' : 'This Desktop',
+      type: 'desktop',
+      platform: isWin ? 'Windows' : (process.platform === 'darwin' ? 'macOS' : 'Linux'),
+      pairedVia: 'Local Session',
+      pairedAt: this.settings.createdAt || Date.now(),
+      lastActive: Date.now(),
+      isCurrent: true,
+      status: 'authorized'
+    };
+
+    let devices = Array.isArray(this.settings.connectedDevices) ? [...this.settings.connectedDevices] : [];
+    const hasGitHub = Boolean(this.settings.github && this.settings.github.owner && this.settings.github.repo);
+    const isRevoked = Array.isArray(this.settings.revokedDevices) && this.settings.revokedDevices.some(d => d.id === 'device-mobile-android');
+
+    if (devices.length === 0 && hasGitHub && !isRevoked) {
+      devices.push({
+        id: 'device-mobile-android',
+        name: 'Android Phone (Vaultly APK)',
+        type: 'mobile',
+        platform: 'Android',
+        pairedVia: 'QR Scan',
+        pairedAt: this.settings.github.lastSyncTimestamp || Date.now() - 3600000,
+        lastActive: this.settings.github.lastSyncTimestamp || Date.now() - 60000,
+        isCurrent: false,
+        status: 'authorized'
+      });
+      this.settings.connectedDevices = devices;
+      fileStorage.writeAtomicSync(this.settingsFilePath, JSON.stringify(this.settings, null, 2));
+    }
+
+    return [currentDevice, ...devices.filter(d => !d.isCurrent)];
+  }
+
+  registerConnectedDevice(deviceInfo) {
+    if (!deviceInfo || !deviceInfo.id) return;
+    if (!Array.isArray(this.settings.connectedDevices)) {
+      this.settings.connectedDevices = [];
+    }
+    if (Array.isArray(this.settings.revokedDevices)) {
+      this.settings.revokedDevices = this.settings.revokedDevices.filter(d => d.id !== deviceInfo.id);
+    }
+    this.settings.connectedDevices = this.settings.connectedDevices.filter(d => d.id !== deviceInfo.id);
+    this.settings.connectedDevices.push({
+      id: deviceInfo.id,
+      name: deviceInfo.name || 'Android Phone (Vaultly Mobile)',
+      type: deviceInfo.type || 'mobile',
+      platform: deviceInfo.platform || 'Android',
+      pairedVia: deviceInfo.pairedVia || 'QR Scan',
+      pairedAt: deviceInfo.pairedAt || Date.now(),
+      lastActive: Date.now(),
+      isCurrent: false,
+      status: 'authorized'
+    });
+    fileStorage.writeAtomicSync(this.settingsFilePath, JSON.stringify(this.settings, null, 2));
+    return this.getConnectedDevices();
+  }
+
+  revokeConnectedDevice(deviceId) {
+    if (!deviceId) return { success: false, error: 'Device ID required' };
+    if (!Array.isArray(this.settings.connectedDevices)) {
+      this.settings.connectedDevices = [];
+    }
+    if (!Array.isArray(this.settings.revokedDevices)) {
+      this.settings.revokedDevices = [];
+    }
+
+    const removedDevice = this.settings.connectedDevices.find(d => d.id === deviceId);
+    this.settings.connectedDevices = this.settings.connectedDevices.filter(d => d.id !== deviceId);
+    this.settings.revokedDevices.push({
+      id: deviceId,
+      name: removedDevice ? removedDevice.name : 'Unknown Device',
+      revokedAt: Date.now()
+    });
+
+    fileStorage.writeAtomicSync(this.settingsFilePath, JSON.stringify(this.settings, null, 2));
+    return {
+      success: true,
+      deviceId,
+      remainingDevices: this.getConnectedDevices()
+    };
+  }
+
   getSanitizedSettings() {
     const token = this.getGitHubToken();
     const hasToken = Boolean(token && typeof token === 'string' && token.trim().length > 0);
     return Object.assign({}, this.settings, {
       hasGitHubToken: hasToken,
-      safeStorageAvailable: this.isSafeStorageAvailable()
+      safeStorageAvailable: this.isSafeStorageAvailable(),
+      connectedDevices: this.getConnectedDevices(),
+      revokedDevices: this.settings.revokedDevices || []
     });
   }
 }

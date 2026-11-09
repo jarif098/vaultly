@@ -1343,6 +1343,13 @@ button:disabled {
 }
 
 /* Forms */
+.form-row-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  width: 100%;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;

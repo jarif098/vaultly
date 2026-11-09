@@ -2,10 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://api.github.com https://github.com;">
   <title>Vaultly Client — Zero-Knowledge Password Vault</title>
-  <link rel="stylesheet" href="styles/main.css">
+  <link rel="stylesheet" href="styles/main.css?v=2">
+  <link rel="stylesheet" href="styles/mobile.css?v=2">
 </head>
 <body>
   <div id="desktop-app-container">
@@ -13,6 +15,9 @@
     <header class="brutalist-titlebar" id="brutalist-titlebar">
       <!-- Left: Styled Brand Logo & Client Badge -->
       <div class="titlebar-section titlebar-left">
+        <button type="button" class="mobile-menu-btn" id="btn-mobile-menu" aria-label="Open Navigation Menu" title="Open Categories">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
         <div class="titlebar-brand" id="titlebar-brand">
           <img src="assets/icons/app-logo-round.png" alt="Vaultly Logo" class="titlebar-logo-round">
           <div class="brand-text-container">
@@ -27,6 +32,14 @@
 
       <!-- Right: Custom Windows Controls -->
       <div class="titlebar-section titlebar-right">
+        <div class="titlebar-actions" style="display: flex; align-items: center; gap: 0.35rem; margin-right: 0.5rem;">
+          <button type="button" class="titlebar-btn-compact" id="btn-tb-mobile-sync" title="Sync Vault with GitHub" style="padding: 0 0.55rem;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          </button>
+          <button type="button" class="titlebar-btn-compact" id="btn-tb-theme-toggle" title="Switch Light / Dark Theme" style="padding: 0 0.55rem;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </button>
+        </div>
         <div class="window-controls">
           <button class="win-btn win-btn-minimize" id="win-btn-min" title="Minimize Window">
             <svg viewBox="0 0 12 12"><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" stroke-width="1.3"/></svg>
@@ -43,6 +56,7 @@
 
     <!-- Main Workspace Area -->
     <div id="app-root">
+      <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
       <!-- Sidebar -->
       <aside class="sidebar">
         <div class="sidebar-header">
@@ -60,6 +74,10 @@
         </nav>
 
         <div class="sidebar-footer">
+          <button class="nav-item" id="nav-btn-mobile-pair" title="Show QR code for Android app" style="border-bottom: 2px solid #121212;">
+            <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></span>
+            <span class="nav-label">Pair Mobile</span>
+          </button>
           <button class="nav-item" id="nav-btn-settings">
             <span class="nav-icon" id="settings-nav-icon"></span>
             <span class="nav-label">Settings</span>
@@ -73,7 +91,7 @@
         <header class="top-bar">
           <div class="search-box">
             <span class="search-icon" id="search-bar-icon"></span>
-            <input type="text" id="global-search-input" class="search-input" placeholder="Search entries (Ctrl+F)..." autocomplete="off" spellcheck="false">
+            <input type="text" id="global-search-input" class="search-input" placeholder="Search passwords..." autocomplete="off" spellcheck="false">
           </div>
 
           <div class="top-bar-actions">
@@ -83,6 +101,9 @@
             </button>
           </div>
         </header>
+
+        <!-- Mobile Horizontal Category Filter Strip -->
+        <div class="mobile-category-strip" id="mobile-category-strip"></div>
 
         <!-- Dynamic Page Header -->
         <div class="page-header" id="page-header">
@@ -150,11 +171,11 @@
             <button class="btn-secondary" id="btn-delete-entry" style="color: var(--color-danger); border-color: rgba(239, 68, 68, 0.3);">
               <span>Delete</span>
             </button>
-            <div style="display: flex; gap: 0.5rem;">
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
               <button class="btn-secondary" id="btn-edit-entry">
                 <span>Edit</span>
               </button>
-              <button class="btn-primary" id="btn-launch-url">
+              <button class="btn-secondary" id="btn-launch-url">
                 <span>Open Site</span>
               </button>
             </div>
@@ -283,6 +304,46 @@
 
     <!-- GitHub Cloud Credentials & Local Vault Setup Screen -->
     <div class="lock-screen" id="github-login-screen" style="display: none; flex-direction: column; align-items: center; justify-content: center; gap: 0.45rem;">
+      <!-- Mobile Pairing Card with Live Embedded QR Code -->
+      <div class="qr-login-callout" style="width: 740px; max-width: 95%; background: #FFE500; border: 3px solid #121212; border-radius: var(--radius-md); box-shadow: 4px 4px 0px #121212; padding: 0.85rem 1.15rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.85rem; margin-bottom: 0.2rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1; min-width: 250px;">
+          <div style="width: 40px; height: 40px; background: #FFFFFF; border: 2.5px solid #121212; border-radius: 50%; box-shadow: 2px 2px 0px #121212; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#121212" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+              <line x1="12" y1="18" x2="12.01" y2="18"/>
+            </svg>
+          </div>
+          <div class="qr-text">
+            <div style="display: flex; align-items: center; gap: 0.45rem;">
+              <h3 style="font-size: 1.05rem; font-weight: 900; margin: 0; color: #121212; letter-spacing: -0.01em;">
+                Scan with Phone to Login
+              </h3>
+              <span class="badge" id="welcome-qr-badge" style="background: #00E599; border: 1.5px solid #121212; box-shadow: 1.5px 1.5px 0px #121212; font-weight: 900; font-size: 0.65rem; padding: 1px 7px; border-radius: 999px; color: #121212;">
+                Auto-Pair
+              </span>
+            </div>
+            <p style="font-size: 0.76rem; color: #121212; font-weight: 700; margin: 0.2rem 0 0.5rem 0; opacity: 0.95; line-height: 1.35;">
+              Scan this QR code with the Vaultly Android app to log in without typing.
+            </p>
+            <div style="display: flex; gap: 0.45rem; flex-wrap: wrap;">
+              <button type="button" class="btn-primary" id="btn-welcome-enlarge-qr" style="background: #121212; color: #FFE500; font-weight: 900; padding: 0.38rem 0.95rem; border: 2px solid #121212; font-size: 0.78rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                <span>Enlarge QR</span>
+              </button>
+              <button type="button" class="btn-secondary" id="btn-welcome-copy-pairing" style="background: #FFFFFF; font-weight: 800; padding: 0.38rem 0.85rem; border: 2px solid #121212; font-size: 0.78rem; cursor: pointer;">
+                Copy Code
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="welcome-qr-container" style="background: #FFFFFF; border: 3px solid #121212; border-radius: var(--radius-md); box-shadow: 3px 3px 0px #121212; padding: 6px; display: flex; align-items: center; justify-content: center; width: 145px; height: 145px; flex-shrink: 0;">
+          <div id="welcome-qr-graphic" style="width: 133px; height: 133px; display: flex; align-items: center; justify-content: center;">
+            <span style="font-size: 0.72rem; font-weight: 800; color: #121212;">Loading QR...</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Separate Highlighted Offline / Save Local Box -->
       <div class="local-save-box" style="width: 740px; max-width: 95%; background: #00E599; border: 3px solid #121212; border-radius: var(--radius-md); box-shadow: 4px 4px 0px #121212; padding: 0.6rem 1.15rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.65rem;">
         <div style="display: flex; align-items: center; gap: 0.65rem;">
@@ -579,7 +640,7 @@
 
     <!-- GitHub Device Authorization Modal -->
     <div class="modal-backdrop" id="github-device-modal">
-      <div class="modal-dialog" style="width: 480px;">
+      <div class="modal-dialog" style="width: 480px; max-width: 95vw;">
         <div class="modal-header">
           <div style="display: flex; align-items: center; gap: 0.5rem;">
             <span style="width: 20px; height: 20px; display: inline-flex;">
@@ -587,7 +648,7 @@
             </span>
             <h3 style="margin: 0; font-size: 1.05rem; font-weight: 900;">Authorize GitHub</h3>
           </div>
-          <button class="btn-icon-only" id="btn-close-device-modal" style="width: 28px; height: 28px;" title="Cancel">✕</button>
+          <button class="btn-icon-only" id="btn-close-device-modal" style="width: 28px; height: 28px;" title="Cancel"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         <div class="modal-body" style="text-align: center; gap: 0.85rem; padding: 1.25rem 1.5rem;">
           <p style="font-size: 0.825rem; color: #121212; font-weight: 600; margin: 0; line-height: 1.4;">
@@ -612,7 +673,7 @@
 
     <!-- GitHub Choose / Change Repository Modal -->
     <div class="modal-backdrop" id="github-repo-modal">
-      <div class="modal-dialog" style="width: 580px;">
+      <div class="modal-dialog" style="width: 580px; max-width: 95vw;">
         <div class="modal-header">
           <div style="display: flex; align-items: center; gap: 0.5rem;">
             <span style="width: 20px; height: 20px; display: inline-flex;">
@@ -620,7 +681,7 @@
             </span>
             <h3 style="margin: 0; font-size: 1.05rem; font-weight: 900;">Choose GitHub Repository</h3>
           </div>
-          <button class="btn-icon-only" id="btn-close-repo-modal" style="width: 28px; height: 28px;" title="Cancel">✕</button>
+          <button class="btn-icon-only" id="btn-close-repo-modal" style="width: 28px; height: 28px;" title="Cancel"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         <div class="modal-body" style="gap: 0.75rem; padding: 1.25rem 1.5rem;">
           <!-- Logged-in profile info -->
@@ -688,12 +749,72 @@
 
     <!-- Toast Container -->
     <div id="toast-container"></div>
+    <!-- QR Code Display Modal (PC -> Mobile) -->
+    <div class="modal-backdrop" id="qr-pair-modal">
+      <div class="modal-dialog" style="width: 440px; max-width: 95vw;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle;"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+            <h3 style="margin: 0; font-size: 1.05rem; font-weight: 900;">Scan to Login on Mobile</h3>
+          </div>
+          <button class="btn-icon-only" id="btn-close-pair-modal" style="width: 28px; height: 28px;" title="Close (Esc)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+        <div class="modal-body" style="padding: 1.25rem; text-align: center; gap: 0.85rem; align-items: center;">
+          <p style="font-size: 0.8rem; color: #121212; font-weight: 600; margin: 0; line-height: 1.35;">
+            Open Vaultly on Android and tap <strong>"Scan QR Code from PC"</strong> to log in and sync immediately.
+          </p>
+          <div id="pair-qr-container" style="padding: 1rem; background: #FFFFFF; border: 3px solid #121212; border-radius: var(--radius-md); box-shadow: 4px 4px 0px #121212; display: flex; align-items: center; justify-content: center; min-width: 220px; min-height: 220px;">
+            <div id="pair-qr-graphic"></div>
+          </div>
+          <div id="pair-repo-info" style="font-size: 0.75rem; font-weight: 800; color: #121212; background: #00E599; border: 2px solid #121212; box-shadow: 2px 2px 0px #121212; padding: 0.35rem 0.85rem; border-radius: 999px;">
+            GitHub Cloud Vault
+          </div>
+          <button type="button" class="btn-secondary" id="btn-copy-pairing-text" style="font-size: 0.78rem; font-weight: 800; padding: 0.4rem 0.95rem; border: 2px solid #121212; box-shadow: 2px 2px 0px #121212;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> Copy Pairing Code Text
+          </button>
+        </div>
+        <div class="modal-footer" style="justify-content: center; padding: 0.75rem 1rem;">
+          <button type="button" class="btn-secondary" id="btn-pair-done" style="padding: 0.45rem 1.5rem; font-weight: 900; background: #FFE500; color: #121212; border: 2px solid #121212; box-shadow: 2px 2px 0px #121212;">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Neo-Brutalist Bottom Navigation Bar -->
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+      <button class="mobile-nav-item active" id="mob-nav-passwords">
+        <span class="mob-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 2-2 2m-1.5 1.5L14 9l-2-2-5.5 5.5a4 4 0 1 0 5.5 5.5L17.5 12.5 19 14l2-2-2-2 2-2z"/><circle cx="7.5" cy="16.5" r="1.5"/></svg></span>
+        <span class="mob-label">Vault</span>
+      </button>
+      <button class="mobile-nav-item" id="mob-nav-favorites">
+        <span class="mob-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
+        <span class="mob-label">Favorites</span>
+      </button>
+      <button class="mobile-nav-item-fab" id="mob-nav-add" title="Add Password">
+        <span class="mob-fab-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+      </button>
+      <button class="mobile-nav-item" id="mob-nav-scan" title="Scan PC QR">
+        <span class="mob-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
+        <span class="mob-label">Scan PC</span>
+      </button>
+      <button class="mobile-nav-item" id="mob-nav-settings">
+        <span class="mob-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+        <span class="mob-label">Settings</span>
+      </button>
+    </nav>
+
   </div>
 
-  <!-- Scripts -->
-  <script src="renderer/catalog.js"></script>
-  <script src="renderer/components.js"></script>
-  <script src="renderer/views.js"></script>
-  <script src="renderer/app.js"></script>
+  <!-- Scripts: Vendor & Android Web Bridge -->
+  <script src="vendor/scrypt.js?v=2"></script>
+  <script src="vendor/qrcode.js?v=2"></script>
+  <script src="vendor/jsqr.js?v=2"></script>
+  <script src="renderer/vaultly-web-bridge.js?v=2"></script>
+  <script src="renderer/catalog.js?v=2"></script>
+  <script src="renderer/components.js?v=2"></script>
+  <script src="renderer/views.js?v=2"></script>
+  <script src="renderer/mobile-qr.js?v=2"></script>
+  <script src="renderer/app.js?v=2"></script>
 </body>
 </html>

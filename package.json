@@ -1,6 +1,6 @@
 {
   "name": "vaultly",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Lightweight, security-focused desktop password manager for Windows",
   "main": "main.js",
   "scripts": {
@@ -24,6 +24,12 @@
   ],
   "author": "Raktakto",
   "license": "MIT",
+  "dependencies": {
+    "jsqr": "^1.4.0",
+    "qrcode": "^1.5.4",
+    "qrcode-generator": "^2.0.4",
+    "scrypt-js": "^3.0.1"
+  },
   "devDependencies": {
     "electron": "^34.2.0",
     "electron-builder": "^25.1.8",

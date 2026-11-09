@@ -75,6 +75,14 @@ contextBridge.exposeInMainWorld('vaultlyApi', {
   saveLocal: () => ipcRenderer.invoke('auth:save-local'),
   disconnectGitHub: () => ipcRenderer.invoke('auth:github-logout'),
 
+  // Mobile & QR Code Pairing
+  getMobilePairingData: () => ipcRenderer.invoke('auth:get-mobile-pairing-data'),
+  getConnectedDevices: () => ipcRenderer.invoke('devices:get'),
+  revokeDeviceAccess: (deviceId) => ipcRenderer.invoke('devices:revoke', deviceId),
+  registerConnectedDevice: (deviceInfo) => ipcRenderer.invoke('devices:register', deviceInfo),
+  loginWithPairingCode: (code) => ipcRenderer.invoke('auth:login-pairing-code', code),
+  isMobile: false,
+
   // GitHub OAuth Device Authorization Flow
   startGitHubDeviceLogin: () => ipcRenderer.invoke('auth:github-start-device'),
   pollGitHubDeviceLogin: () => ipcRenderer.invoke('auth:github-poll-device'),

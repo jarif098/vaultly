@@ -8,13 +8,17 @@
 
 /**
  * Displays a toast notification in the corner of the window.
+ * Guaranteed single-toast queue (never stacks multiple overlapping toasts).
  * @param {string} message
  * @param {'success'|'error'|'warning'|'info'} [type='info']
- * @param {number} [duration=3000]
+ * @param {number} [duration=1800]
  */
-function showToast(message, type = 'info', duration = 3000) {
+function showToast(message, type = 'info', duration = 1800) {
   const container = document.getElementById('toast-container');
   if (!container) return;
+
+  // Never stack multiple toasts: clear existing toasts immediately
+  container.innerHTML = '';
 
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
@@ -29,6 +33,14 @@ function showToast(message, type = 'info', duration = 3000) {
     <span>${escapeHtml(message)}</span>
   `;
 
+  // Dismiss on tap/click immediately
+  toast.addEventListener('click', () => {
+    toast.classList.remove('show');
+    setTimeout(() => {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 150);
+  });
+
   container.appendChild(toast);
 
   // Trigger animation
@@ -42,7 +54,7 @@ function showToast(message, type = 'info', duration = 3000) {
       if (toast.parentNode) {
         toast.parentNode.removeChild(toast);
       }
-    }, 250);
+    }, 200);
   }, duration);
 }
 
@@ -94,8 +106,33 @@ function createPasswordCard(entry, onClick, onCopyUser, onCopyPass, onToggleFav)
   card.className = 'password-card';
   card.dataset.id = entry.id;
 
+  const isMobile = Boolean(
+    (typeof window !== 'undefined' && window.vaultlyApi && window.vaultlyApi.isMobile) ||
+    (typeof document !== 'undefined' && document.documentElement && document.documentElement.classList.contains('platform-mobile')) ||
+    (typeof window !== 'undefined' && window.innerWidth <= 768)
+  );
   const iconSvg = getIconSvg(entry.icon || entry.service);
   const formattedDate = entry.updatedAt ? new Date(entry.updatedAt).toLocaleDateString() : '';
+  const catLabel = entry.category ? entry.category.toUpperCase() : 'OTHER';
+
+  const actionsHtml = `
+    <div class="card-actions">
+      <div class="copy-button-group">
+        <button type="button" class="btn-card-copy btn-copy-username" title="Copy Username" aria-label="Copy Username">
+          ${UI_ICONS.copy}
+          <span>Copy User</span>
+        </button>
+        <button type="button" class="btn-card-copy btn-copy-password" title="Copy Password" aria-label="Copy Password" style="background: var(--accent-color, #FFE500); color: #121212; font-weight: 900; border: 2px solid #121212;">
+          ${UI_ICONS.key || UI_ICONS.copy}
+          <span>Copy Pass</span>
+        </button>
+      </div>
+      <button type="button" class="btn-ghost btn-details" title="View Details" aria-label="View Details">
+        <span>Details</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+  `;
 
   card.innerHTML = `
     <div class="card-header">
@@ -103,34 +140,19 @@ function createPasswordCard(entry, onClick, onCopyUser, onCopyPass, onToggleFav)
         <div class="service-icon-box">${iconSvg}</div>
         <div class="service-meta">
           <h3>${escapeHtml(entry.service)}</h3>
-          <span>${escapeHtml(entry.category ? entry.category.toUpperCase() : 'OTHER')}</span>
+          <span>${escapeHtml(catLabel)}${formattedDate ? ' &middot; ' + escapeHtml(formattedDate) : ''}</span>
         </div>
       </div>
-      <button class="card-favorite-btn" title="Toggle Favorite">
+      <button type="button" class="card-favorite-btn" title="Toggle Favorite">
         ${entry.isFavorite ? UI_ICONS.starFilled : UI_ICONS.star}
       </button>
     </div>
 
     <div class="card-username" title="Username / Email">
-      <span>${escapeHtml(entry.username)}</span>
-      <span style="font-size: 0.72rem; color: var(--text-subtle);">${formattedDate}</span>
+      <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(entry.username)}</span>
     </div>
 
-    <div class="card-actions">
-      <div class="copy-button-group">
-        <button class="btn-card-copy btn-copy-username" title="Copy Username">
-          ${UI_ICONS.copy}
-          <span>User</span>
-        </button>
-        <button class="btn-card-copy btn-copy-password" title="Copy Password">
-          ${UI_ICONS.copy}
-          <span>Pass</span>
-        </button>
-      </div>
-      <button class="btn-ghost btn-details" style="padding: 0.35rem 0.5rem; font-size: 0.75rem;">
-        Details &rarr;
-      </button>
-    </div>
+    ${actionsHtml}
   `;
 
   // Bind events

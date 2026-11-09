@@ -6,7 +6,7 @@
 
 'use strict';
 
-const { app, BrowserWindow, ipcMain, clipboard, dialog, shell, safeStorage, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard, dialog, shell, safeStorage, Menu, nativeImage, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -201,6 +201,10 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   if (vaultService) vaultService.lockVault();
+});
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
 });
 
 // IPC Handler Registration
@@ -438,6 +442,23 @@ function registerIpcHandlers() {
   ipcMain.handle('settings:save-github-token', async (event, { token, allowUnsafeFallback }) => {
     resetActivity();
     return settingsService.saveGitHubToken(token, allowUnsafeFallback);
+  });
+
+    // --- Connected Devices & Access Management ---
+  ipcMain.handle('devices:get', async () => {
+    resetActivity();
+    return settingsService.getConnectedDevices();
+  });
+
+  ipcMain.handle('devices:revoke', async (event, deviceId) => {
+    resetActivity();
+    return settingsService.revokeConnectedDevice(deviceId);
+  });
+
+  ipcMain.handle('devices:register', async (event, deviceInfo) => {
+    resetActivity();
+    settingsService.registerConnectedDevice(deviceInfo);
+    return settingsService.getConnectedDevices();
   });
 
   ipcMain.handle('settings:clear-github-token', async () => {
@@ -1088,6 +1109,117 @@ function registerIpcHandlers() {
     browserAuthService.cancel();
     activeGitHubAuth = null;
     return { success: true };
+  });
+
+  // --- Mobile & QR Code Pairing Handlers ---
+  ipcMain.handle('auth:get-mobile-pairing-data', async () => {
+    resetActivity();
+    const token = settingsService.getGitHubToken();
+    const creds = settingsService.getGitHubCredentials();
+    const gh = settingsService.settings?.github || {};
+    const owner = creds.owner || gh.owner || '';
+    const repo = creds.repo || gh.repo || '';
+    const branch = creds.branch || gh.branch || 'main';
+    const isConfigured = Boolean(token && owner && repo);
+    const mode = isConfigured ? 'github' : (settingsService.settings && settingsService.settings.mode === 'github' && owner && repo ? 'github' : 'local');
+
+    // Register paired mobile device in connected devices list
+    settingsService.registerConnectedDevice({
+      id: 'device-mobile-android',
+      name: 'Android Phone (Vaultly Mobile)',
+      type: 'mobile',
+      platform: 'Android',
+      pairedVia: 'QR Scan',
+      pairedAt: Date.now(),
+      lastActive: Date.now(),
+      isCurrent: false,
+      status: 'authorized'
+    });
+
+    if (mode === 'github') {
+      return {
+        type: 'vaultly-pair',
+        v: 1,
+        mode: 'github',
+        owner: owner,
+        repo: repo,
+        branch: branch,
+        token: token || ''
+      };
+    }
+
+    const localKey = settingsService.getOrCreateLocalVaultKey();
+    return {
+      type: 'vaultly-pair',
+      v: 1,
+      mode: 'local',
+      localKey: localKey
+    };
+  });
+
+  ipcMain.handle('auth:login-pairing-code', async (event, pairingInput) => {
+    resetActivity();
+    let data = pairingInput;
+    if (typeof pairingInput === 'string') {
+      try {
+        data = JSON.parse(pairingInput.trim());
+      } catch (e) {
+        throw new Error('Invalid pairing code JSON.');
+      }
+    }
+    if (!data || data.type !== 'vaultly-pair') {
+      throw new Error('Invalid Vaultly pairing code.');
+    }
+    if (data.mode === 'github') {
+      const cleanToken = (data.token || '').trim();
+      const cleanOwner = (data.owner || '').trim();
+      const cleanRepo = (data.repo || '').trim();
+      const cleanBranch = (data.branch || 'main').trim();
+      await settingsService.saveGitHubToken(cleanToken, true);
+      const isConnected = await githubService.testConnection(cleanOwner, cleanRepo, cleanToken);
+      if (!isConnected) {
+        throw new Error('Cannot connect to repository ' + cleanOwner + '/' + cleanRepo + '. Check permissions.');
+      }
+      let userProfile = null;
+      try { userProfile = await githubService.getUserProfile(cleanToken); } catch (e) {}
+      settingsService.saveSettings({
+        mode: 'github',
+        hasGitHubToken: true,
+        github: {
+          owner: cleanOwner,
+          repo: cleanRepo,
+          branch: cleanBranch,
+          autoSync: true,
+          user: userProfile,
+          lastSyncStatus: 'synced',
+          lastSyncAt: new Date().toISOString()
+        }
+      });
+      const key = vaultService.deriveVaultKey(cleanToken, cleanOwner, cleanRepo);
+      try {
+        await vaultService.restoreFromCloud(githubService, cleanToken, cleanOwner, cleanRepo, cleanBranch, key);
+      } catch (err) {
+        if (!fs.existsSync(vaultService.vaultFilePath)) {
+          await vaultService.createWithDerivedKey(key);
+          await vaultService.syncWithGitHub(githubService, cleanToken, cleanOwner, cleanRepo, cleanBranch, true);
+        } else {
+          await vaultService.unlockWithDerivedKey(key);
+        }
+      }
+      return { success: true };
+    } else if (data.mode === 'local') {
+      const localKey = data.localKey || settingsService.getOrCreateLocalVaultKey();
+      settingsService.saveSettings({ mode: 'local' });
+      if (vaultService.state !== VAULT_STATES.UNLOCKED) {
+        if (!fs.existsSync(vaultService.vaultFilePath)) {
+          await vaultService.createWithDerivedKey(localKey);
+        } else {
+          await vaultService.unlockWithDerivedKey(localKey);
+        }
+      }
+      return { success: true };
+    }
+    throw new Error('Unsupported pairing mode: ' + data.mode);
   });
 
   // Legacy compatibility fallbacks
